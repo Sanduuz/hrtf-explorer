@@ -13,7 +13,7 @@ body {
   display: grid;
   min-height: 100vh;
   margin: 0;
-  padding: 1rem;
+  padding: 0.75rem;
   place-items: center;
   background:
     radial-gradient(circle at 50% 15%, #172333 0, transparent 38rem),
@@ -22,7 +22,7 @@ body {
 
 main {
   width: min(100%, 110rem);
-  padding: 1.25rem;
+  padding: 1rem;
   border: 1px solid #2d3a4d;
   border-radius: 0.75rem;
   background: #131a24;
@@ -30,7 +30,7 @@ main {
 }
 
 header {
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
 }
 
 .eyebrow {
@@ -59,7 +59,7 @@ h2 {
   display: grid;
   grid-template-columns: 18rem minmax(32rem, 1fr) 18rem;
   gap: 1rem;
-  align-items: start;
+  align-items: stretch;
 }
 
 section {
@@ -72,6 +72,8 @@ section {
 
 .scene-panel {
   position: relative;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
   padding: 0;
   overflow: hidden;
@@ -158,10 +160,11 @@ section {
 }
 
 canvas {
+  flex: 1 1 0;
   display: block;
   width: 100%;
-  height: clamp(28rem, calc(100vh - 18.5rem), 46rem);
-  min-height: 28rem;
+  height: 0;
+  min-height: 0;
   background: #070b11;
   cursor: crosshair;
   touch-action: none;
@@ -369,7 +372,7 @@ pre {
 }
 
 footer {
-  margin-top: 1rem;
+  margin-top: 0.75rem;
   color: #ffd479;
   text-align: center;
 }
@@ -396,6 +399,7 @@ footer {
   }
 
   canvas {
+    flex: none;
     height: 55vh;
     min-height: 24rem;
   }
