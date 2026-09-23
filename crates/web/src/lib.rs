@@ -88,7 +88,12 @@ impl BinauralApp {
             return Err(JsError::new("source angles must be finite"));
         }
         self.direction = spherical_to_direction(azimuth_degrees, elevation_degrees);
-        let (selection, contributors) = selection_state(self.dataset()?, self.direction)?;
+        let (mut selection, contributors) = selection_state(self.dataset()?, self.direction)?;
+        // A direction vector cannot distinguish +180° from -180°, and azimuth is
+        // undefined at either elevation pole. Preserve explicit control input so the UI does
+        // not jump while the physical direction remains unchanged.
+        selection.azimuth_degrees = azimuth_degrees;
+        selection.elevation_degrees = elevation_degrees;
         #[cfg(target_arch = "wasm32")]
         if let Some(renderer) = &mut self.renderer {
             renderer
@@ -99,6 +104,26 @@ impl BinauralApp {
         #[cfg(not(target_arch = "wasm32"))]
         drop(contributors);
         Ok(selection)
+    }
+
+    /// Moves the physical source to a canonical head-relative direction.
+    ///
+    /// Supported presets are `front`, `back`, `left`, `right`, `top`, and `bottom`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a JavaScript error for an unknown preset or before dataset loading.
+    pub fn set_source_preset(&mut self, preset: &str) -> Result<SelectionInfo, JsError> {
+        let (azimuth, elevation) = match preset {
+            "front" => (0.0, 0.0),
+            "back" => (180.0, 0.0),
+            "left" => (-90.0, 0.0),
+            "right" => (90.0, 0.0),
+            "top" => (0.0, 90.0),
+            "bottom" => (0.0, -90.0),
+            _ => return Err(JsError::new("unknown source preset")),
+        };
+        self.set_direction(azimuth, elevation)
     }
 
     /// Returns the current direction and interpolation diagnostics.
@@ -611,6 +636,37 @@ mod tests {
         assert_ne!(source_on_right.left, source_on_right.right);
         assert_eq!(source_on_right.left, source_on_left.right);
         assert_eq!(source_on_right.right, source_on_left.left);
+    }
+
+    #[test]
+    fn source_presets_use_canonical_head_relative_directions() {
+        let mut app = packaged_app();
+
+        let front = app.set_source_preset("front").unwrap();
+        assert!(front.z > 0.999);
+        let right = app.set_source_preset("right").unwrap();
+        assert!(right.x > 0.999);
+        let top = app.set_source_preset("top").unwrap();
+        assert!(top.y > 0.999);
+        let bottom = app.set_source_preset("bottom").unwrap();
+        assert!(bottom.y < -0.999);
+    }
+
+    #[test]
+    fn explicit_angles_do_not_alias_at_wrap_or_poles() {
+        let mut app = packaged_app();
+
+        let positive_back = app.set_direction(180.0, 0.0).unwrap();
+        assert!((positive_back.azimuth_degrees - 180.0).abs() < f32::EPSILON);
+        let negative_back = app.set_direction(-180.0, 0.0).unwrap();
+        assert!((negative_back.azimuth_degrees + 180.0).abs() < f32::EPSILON);
+
+        let top = app.set_direction(63.5, 90.0).unwrap();
+        assert!((top.azimuth_degrees - 63.5).abs() < f32::EPSILON);
+        assert!((top.elevation_degrees - 90.0).abs() < f32::EPSILON);
+        let bottom = app.set_direction(-42.5, -90.0).unwrap();
+        assert!((bottom.azimuth_degrees + 42.5).abs() < f32::EPSILON);
+        assert!((bottom.elevation_degrees + 90.0).abs() < f32::EPSILON);
     }
 
     #[test]

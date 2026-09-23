@@ -16,8 +16,8 @@ const elements = {
   loop: document.querySelector("#loop"),
   azimuth: document.querySelector("#azimuth"),
   elevation: document.querySelector("#elevation"),
-  azimuthValue: document.querySelector("#azimuth-value"),
-  elevationValue: document.querySelector("#elevation-value"),
+  azimuthNumber: document.querySelector("#azimuth-number"),
+  elevationNumber: document.querySelector("#elevation-number"),
   debug: document.querySelector("#debug"),
   hrirPlot: {
     leftPath: document.querySelector("#left-hrir-path"),
@@ -25,6 +25,7 @@ const elements = {
     length: document.querySelector("#hrir-length"),
     duration: document.querySelector("#hrir-duration"),
   },
+  sourcePresets: [...document.querySelectorAll("[data-source-preset]")],
   cameraPresets: [...document.querySelectorAll("[data-camera-preset]")],
   displayLayers: [...document.querySelectorAll("[data-display-layer]")],
   play: document.querySelector("#play"),
@@ -51,10 +52,6 @@ let activePlayback;
 const MAX_CUSTOM_DURATION_SECONDS = 60;
 const MAX_CUSTOM_FILE_BYTES = 50 * 1024 * 1024;
 
-function formatSigned(value) {
-  return `${value >= 0 ? "+" : ""}${value.toFixed(1)}°`;
-}
-
 function setEnabled(enabled) {
   for (const element of [
     elements.signal,
@@ -63,7 +60,10 @@ function setEnabled(enabled) {
     elements.loop,
     elements.azimuth,
     elements.elevation,
+    elements.azimuthNumber,
+    elements.elevationNumber,
     elements.play,
+    ...elements.sourcePresets,
     ...elements.cameraPresets,
     ...elements.displayLayers,
   ]) {
@@ -114,8 +114,8 @@ function applySelection(selection, updateSliders = false) {
     elements.azimuth.value = String(azimuth);
     elements.elevation.value = String(elevation);
   }
-  elements.azimuthValue.value = formatSigned(azimuth);
-  elements.elevationValue.value = formatSigned(elevation);
+  elements.azimuthNumber.value = azimuth.toFixed(1);
+  elements.elevationNumber.value = elevation.toFixed(1);
   elements.debug.textContent = [
     `XYZ: ${x.toFixed(3)}, ${y.toFixed(3)}, ${z.toFixed(3)}`,
     `Interpolation:\n${contributors}`,
@@ -137,6 +137,21 @@ function updateDirection() {
     Number(elements.azimuth.value),
     Number(elements.elevation.value),
   ));
+}
+
+function updateDirectionFromNumbers() {
+  const azimuth = Number(elements.azimuthNumber.value);
+  const elevation = Number(elements.elevationNumber.value);
+  if (!Number.isFinite(azimuth) || !Number.isFinite(elevation)) {
+    elements.azimuthNumber.value = Number(elements.azimuth.value).toFixed(1);
+    elements.elevationNumber.value = Number(elements.elevation.value).toFixed(1);
+    return;
+  }
+  const clampedAzimuth = Math.max(-180, Math.min(180, azimuth));
+  const clampedElevation = Math.max(-90, Math.min(90, elevation));
+  elements.azimuth.value = String(clampedAzimuth);
+  elements.elevation.value = String(clampedElevation);
+  updateDirection();
 }
 
 function resizeRenderer() {
@@ -364,6 +379,13 @@ async function start() {
 
 elements.azimuth.addEventListener("input", updateDirection);
 elements.elevation.addEventListener("input", updateDirection);
+elements.azimuthNumber.addEventListener("change", updateDirectionFromNumbers);
+elements.elevationNumber.addEventListener("change", updateDirectionFromNumbers);
+for (const input of [elements.azimuthNumber, elements.elevationNumber]) {
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") input.blur();
+  });
+}
 elements.play.addEventListener("click", () => togglePlayback().catch(showError));
 elements.stop.addEventListener("click", () => {
   stopPlayback();
@@ -572,6 +594,16 @@ for (const button of elements.cameraPresets) {
   button.addEventListener("click", () => {
     try {
       app.set_camera_preset(button.dataset.cameraPreset);
+    } catch (error) {
+      showError(error);
+    }
+  });
+}
+
+for (const button of elements.sourcePresets) {
+  button.addEventListener("click", () => {
+    try {
+      applySelection(app.set_source_preset(button.dataset.sourcePreset), true);
     } catch (error) {
       showError(error);
     }

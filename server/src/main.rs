@@ -159,6 +159,8 @@ mod tests {
         assert!(INDEX_HTML.contains("id=\"playback-progress\""));
         assert!(INDEX_HTML.contains("up to 60 seconds"));
         assert!(INDEX_HTML.contains("data-camera-preset=\"front\""));
+        assert!(INDEX_HTML.contains("data-source-preset=\"front\""));
+        assert!(INDEX_HTML.contains("id=\"azimuth-number\""));
         assert!(INDEX_HTML.contains("data-camera-preset=\"bottom\""));
         assert!(INDEX_HTML.contains("id=\"hrir-plot\""));
         assert!(INDEX_HTML.contains("data-display-layer=\"measurements\""));

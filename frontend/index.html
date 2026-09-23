@@ -68,6 +68,14 @@
         <section class="scene-panel" aria-labelledby="scene-heading">
           <div class="scene-heading">
             <h2 id="scene-heading">Source sphere</h2>
+            <div class="source-presets" aria-label="Source position presets">
+              <button type="button" data-source-preset="front" disabled>Front</button>
+              <button type="button" data-source-preset="back" disabled>Back</button>
+              <button type="button" data-source-preset="left" disabled>Left</button>
+              <button type="button" data-source-preset="right" disabled>Right</button>
+              <button type="button" data-source-preset="top" disabled>Top</button>
+              <button type="button" data-source-preset="bottom" disabled>Bottom</button>
+            </div>
             <span class="interaction-help">
               Mouse: left-drag source · right-drag orbit · scroll zoom
             </span>
@@ -86,9 +94,15 @@
         <aside class="sidebar right-sidebar">
           <section aria-labelledby="position-heading">
             <h2 id="position-heading">Source position</h2>
-            <label for="azimuth">Azimuth <output id="azimuth-value">+37.2°</output></label>
+            <div class="angle-heading">
+              <label for="azimuth">Azimuth (°)</label>
+              <input id="azimuth-number" type="number" min="-180" max="180" step="0.1" value="37.2" aria-label="Azimuth in degrees" disabled>
+            </div>
             <input id="azimuth" type="range" min="-180" max="180" step="0.1" value="37.2" disabled>
-            <label for="elevation">Elevation <output id="elevation-value">+14.7°</output></label>
+            <div class="angle-heading">
+              <label for="elevation">Elevation (°)</label>
+              <input id="elevation-number" type="number" min="-90" max="90" step="0.1" value="14.7" aria-label="Elevation in degrees" disabled>
+            </div>
             <input id="elevation" type="range" min="-90" max="90" step="0.1" value="14.7" disabled>
             <pre id="debug">Direction and interpolation details will appear here.</pre>
           </section>

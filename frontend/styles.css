@@ -149,6 +149,21 @@ section {
   margin: 0;
 }
 
+.source-presets {
+  display: grid;
+  flex: 0 1 20.5rem;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.3rem;
+}
+
+.source-presets button {
+  min-width: 0;
+  min-height: 1.75rem;
+  margin: 0;
+  padding: 0.2rem 0.35rem;
+  font-size: 0.68rem;
+}
+
 .interaction-help {
   line-height: 1.5;
   text-align: right;
@@ -204,6 +219,29 @@ label {
   margin-top: 0.55rem;
 }
 
+.angle-heading {
+  display: grid;
+  grid-template-columns: 1fr 5.5rem;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.55rem;
+}
+
+.angle-heading label,
+.angle-heading input {
+  margin: 0;
+}
+
+.angle-heading input {
+  padding: 0.35rem 0.45rem;
+  border: 1px solid #40516a;
+  border-radius: 0.35rem;
+  background: #182231;
+  color: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
 select,
 button,
 input {
@@ -239,6 +277,10 @@ button {
 .sidebar select,
 .sidebar button {
   min-height: 2.4rem;
+}
+
+.sidebar select {
+  padding: 0 2rem 0 0.75rem;
 }
 
 input[type="file"] {
