@@ -36,6 +36,45 @@ pub trait HrirInterpolator {
     ) -> Result<InterpolatedHrir, HrtfError>;
 }
 
+/// Selects the single closest measured direction without blending HRIR samples.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct NearestNeighborInterpolator;
+
+impl NearestNeighborInterpolator {
+    /// Returns the closest measurement with weight one.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the direction is invalid.
+    pub fn contributors(
+        dataset: &HrtfDataset,
+        direction: Vec3,
+    ) -> Result<Vec<InterpolationContributor>, HrtfError> {
+        let nearest = sorted_distances(dataset, direction)?
+            .into_iter()
+            .next()
+            .ok_or(HrtfError::EmptyDataset)?;
+        Ok(vec![InterpolationContributor {
+            measurement_index: nearest.0,
+            angular_distance_radians: nearest.1,
+            weight: 1.0,
+        }])
+    }
+}
+
+impl HrirInterpolator for NearestNeighborInterpolator {
+    fn interpolate(
+        &self,
+        dataset: &HrtfDataset,
+        direction: Vec3,
+    ) -> Result<InterpolatedHrir, HrtfError> {
+        Ok(interpolate_contributors(
+            dataset,
+            Self::contributors(dataset, direction)?,
+        ))
+    }
+}
+
 /// Three nearest unit vectors, weighted by inverse angular distance.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct NearestThreeInterpolator;
@@ -57,16 +96,7 @@ impl NearestThreeInterpolator {
                 required: NEIGHBOR_COUNT,
             });
         }
-        let direction = normalized(direction)?;
-        let mut distances = dataset
-            .measurements()
-            .iter()
-            .enumerate()
-            .map(|(index, measurement)| {
-                angular_distance(direction, measurement.direction).map(|distance| (index, distance))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        distances.sort_by(|left, right| left.1.partial_cmp(&right.1).unwrap_or(Ordering::Equal));
+        let distances = sorted_distances(dataset, direction)?;
 
         if distances[0].1 <= EXACT_MATCH_RADIANS {
             return Ok(vec![InterpolationContributor {
@@ -97,25 +127,51 @@ impl HrirInterpolator for NearestThreeInterpolator {
         dataset: &HrtfDataset,
         direction: Vec3,
     ) -> Result<InterpolatedHrir, HrtfError> {
-        let contributors = Self::contributors(dataset, direction)?;
-        let mut left = vec![0.0; dataset.hrir_length()];
-        let mut right = vec![0.0; dataset.hrir_length()];
+        Ok(interpolate_contributors(
+            dataset,
+            Self::contributors(dataset, direction)?,
+        ))
+    }
+}
 
-        for contributor in &contributors {
-            let measurement = &dataset.measurements()[contributor.measurement_index];
-            for (output, sample) in left.iter_mut().zip(&measurement.left) {
-                *output += contributor.weight * sample;
-            }
-            for (output, sample) in right.iter_mut().zip(&measurement.right) {
-                *output += contributor.weight * sample;
-            }
-        }
-
-        Ok(InterpolatedHrir {
-            left,
-            right,
-            contributors,
+fn sorted_distances(
+    dataset: &HrtfDataset,
+    direction: Vec3,
+) -> Result<Vec<(usize, f32)>, HrtfError> {
+    let direction = normalized(direction)?;
+    let mut distances = dataset
+        .measurements()
+        .iter()
+        .enumerate()
+        .map(|(index, measurement)| {
+            angular_distance(direction, measurement.direction).map(|distance| (index, distance))
         })
+        .collect::<Result<Vec<_>, _>>()?;
+    distances.sort_by(|left, right| left.1.partial_cmp(&right.1).unwrap_or(Ordering::Equal));
+    Ok(distances)
+}
+
+fn interpolate_contributors(
+    dataset: &HrtfDataset,
+    contributors: Vec<InterpolationContributor>,
+) -> InterpolatedHrir {
+    let mut left = vec![0.0; dataset.hrir_length()];
+    let mut right = vec![0.0; dataset.hrir_length()];
+
+    for contributor in &contributors {
+        let measurement = &dataset.measurements()[contributor.measurement_index];
+        for (output, sample) in left.iter_mut().zip(&measurement.left) {
+            *output += contributor.weight * sample;
+        }
+        for (output, sample) in right.iter_mut().zip(&measurement.right) {
+            *output += contributor.weight * sample;
+        }
+    }
+
+    InterpolatedHrir {
+        left,
+        right,
+        contributors,
     }
 }
 
@@ -149,6 +205,20 @@ mod tests {
         let result = NearestThreeInterpolator
             .interpolate(&dataset, Vec3::X)
             .unwrap();
+        assert_eq!(result.left, vec![3.0, 4.0]);
+        assert_eq!(result.right, vec![30.0, 40.0]);
+        assert_eq!(result.contributors.len(), 1);
+        assert_eq!(result.contributors[0].measurement_index, 1);
+        assert!((result.contributors[0].weight - 1.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn nearest_neighbor_returns_one_unmodified_measurement() {
+        let dataset = synthetic_dataset();
+        let result = NearestNeighborInterpolator
+            .interpolate(&dataset, spherical_to_direction(80.0, 5.0))
+            .unwrap();
+
         assert_eq!(result.left, vec![3.0, 4.0]);
         assert_eq!(result.right, vec![30.0, 40.0]);
         assert_eq!(result.contributors.len(), 1);

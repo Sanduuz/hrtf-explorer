@@ -155,6 +155,17 @@ export class BinauralApp {
      */
     set_display_layer(layer: string, visible: boolean): void;
     /**
+     * Selects the HRIR interpolation strategy and refreshes its diagnostics.
+     *
+     * Supported methods are `nearest-neighbor` and `nearest-three`.
+     *
+     * # Errors
+     *
+     * Returns a JavaScript error for an unknown method, before dataset loading, or if rendering
+     * the updated contributors fails.
+     */
+    set_interpolation_method(method: string): SelectionInfo;
+    /**
      * Moves the physical source to a canonical head-relative direction.
      *
      * Supported presets are `front`, `back`, `left`, `right`, `top`, and `bottom`.
@@ -238,6 +249,7 @@ export interface InitOutput {
     readonly binauralapp_set_camera_preset: (a: number, b: number, c: number) => [number, number];
     readonly binauralapp_set_direction: (a: number, b: number, c: number) => [number, number, number];
     readonly binauralapp_set_display_layer: (a: number, b: number, c: number, d: number) => [number, number];
+    readonly binauralapp_set_interpolation_method: (a: number, b: number, c: number) => [number, number, number];
     readonly binauralapp_set_source_preset: (a: number, b: number, c: number) => [number, number, number];
     readonly binauralapp_zoom_camera: (a: number, b: number) => [number, number];
     readonly browserhrir_left: (a: number) => [number, number];
@@ -254,8 +266,8 @@ export interface InitOutput {
     readonly wasm_bindgen_196a8f8e05f9fa6c___convert__closures_____invoke___js_sys_762fa09176666909___Function_fn_wasm_bindgen_196a8f8e05f9fa6c___JsValue_____wasm_bindgen_196a8f8e05f9fa6c___sys__Undefined___js_sys_762fa09176666909___Function_fn_wasm_bindgen_196a8f8e05f9fa6c___JsValue_____wasm_bindgen_196a8f8e05f9fa6c___sys__Undefined_______true_: (a: number, b: number, c: any, d: any) => void;
     readonly wasm_bindgen_196a8f8e05f9fa6c___convert__closures_____invoke___wasm_bindgen_196a8f8e05f9fa6c___JsValue__core_f0fd674eaa06beef___result__Result_____wasm_bindgen_196a8f8e05f9fa6c___JsError___true_: (a: number, b: number, c: any) => [number, number];
     readonly wasm_bindgen_196a8f8e05f9fa6c___convert__closures_____invoke___wasm_bindgen_196a8f8e05f9fa6c___sys__JsNullable_wgpu_4c61c97cbefedaa1___backend__webgpu__webgpu_sys__gen_GpuError__GpuError___core_f0fd674eaa06beef___result__Result_____wasm_bindgen_196a8f8e05f9fa6c___JsError___true_: (a: number, b: number, c: any) => [number, number];
-    readonly wasm_bindgen_196a8f8e05f9fa6c___convert__closures_____invoke___wasm_bindgen_196a8f8e05f9fa6c___sys__JsNullable_wgpu_4c61c97cbefedaa1___backend__webgpu__webgpu_sys__gen_GpuError__GpuError___core_f0fd674eaa06beef___result__Result_____wasm_bindgen_196a8f8e05f9fa6c___JsError___true__34: (a: number, b: number, c: any) => [number, number];
     readonly wasm_bindgen_196a8f8e05f9fa6c___convert__closures_____invoke___wasm_bindgen_196a8f8e05f9fa6c___sys__JsNullable_wgpu_4c61c97cbefedaa1___backend__webgpu__webgpu_sys__gen_GpuError__GpuError___core_f0fd674eaa06beef___result__Result_____wasm_bindgen_196a8f8e05f9fa6c___JsError___true__35: (a: number, b: number, c: any) => [number, number];
+    readonly wasm_bindgen_196a8f8e05f9fa6c___convert__closures_____invoke___wasm_bindgen_196a8f8e05f9fa6c___sys__JsNullable_wgpu_4c61c97cbefedaa1___backend__webgpu__webgpu_sys__gen_GpuError__GpuError___core_f0fd674eaa06beef___result__Result_____wasm_bindgen_196a8f8e05f9fa6c___JsError___true__36: (a: number, b: number, c: any) => [number, number];
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_exn_store: (a: number) => void;

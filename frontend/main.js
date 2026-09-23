@@ -18,6 +18,7 @@ const elements = {
   elevation: document.querySelector("#elevation"),
   azimuthNumber: document.querySelector("#azimuth-number"),
   elevationNumber: document.querySelector("#elevation-number"),
+  interpolationMethod: document.querySelector("#interpolation-method"),
   debug: document.querySelector("#debug"),
   hrirPlot: {
     leftPath: document.querySelector("#left-hrir-path"),
@@ -62,6 +63,7 @@ function setEnabled(enabled) {
     elements.elevation,
     elements.azimuthNumber,
     elements.elevationNumber,
+    elements.interpolationMethod,
     elements.play,
     ...elements.sourcePresets,
     ...elements.cameraPresets,
@@ -101,7 +103,7 @@ function clearStatus() {
   elements.status.hidden = true;
 }
 
-function applySelection(selection, updateSliders = false) {
+function applySelection(selection, updateSliders = false, updateAngles = true) {
   const azimuth = selection.azimuth_degrees;
   const elevation = selection.elevation_degrees;
   const x = selection.x;
@@ -114,8 +116,10 @@ function applySelection(selection, updateSliders = false) {
     elements.azimuth.value = String(azimuth);
     elements.elevation.value = String(elevation);
   }
-  elements.azimuthNumber.value = azimuth.toFixed(1);
-  elements.elevationNumber.value = elevation.toFixed(1);
+  if (updateAngles) {
+    elements.azimuthNumber.value = azimuth.toFixed(1);
+    elements.elevationNumber.value = elevation.toFixed(1);
+  }
   elements.debug.textContent = [
     `XYZ: ${x.toFixed(3)}, ${y.toFixed(3)}, ${z.toFixed(3)}`,
     `Interpolation:\n${contributors}`,
@@ -381,6 +385,14 @@ elements.azimuth.addEventListener("input", updateDirection);
 elements.elevation.addEventListener("input", updateDirection);
 elements.azimuthNumber.addEventListener("change", updateDirectionFromNumbers);
 elements.elevationNumber.addEventListener("change", updateDirectionFromNumbers);
+elements.interpolationMethod.addEventListener("change", () => {
+  try {
+    const selection = app.set_interpolation_method(elements.interpolationMethod.value);
+    applySelection(selection, false, false);
+  } catch (error) {
+    showError(error);
+  }
+});
 for (const input of [elements.azimuthNumber, elements.elevationNumber]) {
   input.addEventListener("keydown", (event) => {
     if (event.key === "Enter") input.blur();

@@ -1,8 +1,9 @@
 //! Coarse-grained WASM bindings for the browser audio proof of concept.
 
 use hrtf::{
-    HrirInterpolator, HrtfDataset, InterpolationContributor, NearestThreeInterpolator, Vec3,
-    direction_to_spherical, render_binaural, spherical_to_direction,
+    HrirInterpolator, HrtfDataset, InterpolatedHrir, InterpolationContributor,
+    NearestNeighborInterpolator, NearestThreeInterpolator, Vec3, direction_to_spherical,
+    render_binaural, spherical_to_direction,
 };
 use wasm_bindgen::prelude::*;
 
@@ -18,11 +19,43 @@ const DEFAULT_ELEVATION_DEGREES: f32 = 14.7;
 const MAX_TEST_DURATION_SECONDS: f32 = 10.0;
 const MAX_TEST_SAMPLES: f64 = 1_000_000.0;
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+enum InterpolationMethod {
+    NearestNeighbor,
+    #[default]
+    NearestThree,
+}
+
+impl InterpolationMethod {
+    fn contributors(
+        self,
+        dataset: &HrtfDataset,
+        direction: Vec3,
+    ) -> Result<Vec<InterpolationContributor>, hrtf::HrtfError> {
+        match self {
+            Self::NearestNeighbor => NearestNeighborInterpolator::contributors(dataset, direction),
+            Self::NearestThree => NearestThreeInterpolator::contributors(dataset, direction),
+        }
+    }
+
+    fn interpolate(
+        self,
+        dataset: &HrtfDataset,
+        direction: Vec3,
+    ) -> Result<InterpolatedHrir, hrtf::HrtfError> {
+        match self {
+            Self::NearestNeighbor => NearestNeighborInterpolator.interpolate(dataset, direction),
+            Self::NearestThree => NearestThreeInterpolator.interpolate(dataset, direction),
+        }
+    }
+}
+
 /// Long-lived browser application state. The HRTF data is owned only by Rust.
 #[wasm_bindgen]
 pub struct BinauralApp {
     dataset: Option<HrtfDataset>,
     direction: Vec3,
+    interpolation_method: InterpolationMethod,
     #[cfg(target_arch = "wasm32")]
     renderer: Option<renderer::Renderer>,
 }
@@ -35,6 +68,7 @@ impl BinauralApp {
         Self {
             dataset: None,
             direction: spherical_to_direction(DEFAULT_AZIMUTH_DEGREES, DEFAULT_ELEVATION_DEGREES),
+            interpolation_method: InterpolationMethod::default(),
             #[cfg(target_arch = "wasm32")]
             renderer: None,
         }
@@ -88,7 +122,8 @@ impl BinauralApp {
             return Err(JsError::new("source angles must be finite"));
         }
         self.direction = spherical_to_direction(azimuth_degrees, elevation_degrees);
-        let (mut selection, contributors) = selection_state(self.dataset()?, self.direction)?;
+        let (mut selection, contributors) =
+            selection_state(self.dataset()?, self.direction, self.interpolation_method)?;
         // A direction vector cannot distinguish +180° from -180°, and azimuth is
         // undefined at either elevation pole. Preserve explicit control input so the UI does
         // not jump while the physical direction remains unchanged.
@@ -126,13 +161,42 @@ impl BinauralApp {
         self.set_direction(azimuth, elevation)
     }
 
+    /// Selects the HRIR interpolation strategy and refreshes its diagnostics.
+    ///
+    /// Supported methods are `nearest-neighbor` and `nearest-three`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a JavaScript error for an unknown method, before dataset loading, or if rendering
+    /// the updated contributors fails.
+    pub fn set_interpolation_method(&mut self, method: &str) -> Result<SelectionInfo, JsError> {
+        let method = match method {
+            "nearest-neighbor" => InterpolationMethod::NearestNeighbor,
+            "nearest-three" => InterpolationMethod::NearestThree,
+            _ => return Err(JsError::new("unknown interpolation method")),
+        };
+        let (selection, contributors) = selection_state(self.dataset()?, self.direction, method)?;
+        self.interpolation_method = method;
+        #[cfg(target_arch = "wasm32")]
+        if let Some(renderer) = &mut self.renderer {
+            renderer
+                .set_selection(self.direction, &contributors)
+                .map_err(js_error)?;
+            renderer.render().map_err(js_error)?;
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        drop(contributors);
+        Ok(selection)
+    }
+
     /// Returns the current direction and interpolation diagnostics.
     ///
     /// # Errors
     ///
     /// Returns a JavaScript error before dataset loading or if interpolation fails.
     pub fn selection_info(&self) -> Result<SelectionInfo, JsError> {
-        selection_state(self.dataset()?, self.direction).map(|(selection, _)| selection)
+        selection_state(self.dataset()?, self.direction, self.interpolation_method)
+            .map(|(selection, _)| selection)
     }
 
     /// Generates a deterministic built-in mono test signal at the dataset sample rate.
@@ -222,7 +286,8 @@ impl BinauralApp {
             .iter()
             .map(|measurement| measurement.direction)
             .collect::<Vec<_>>();
-        let (_, contributors) = selection_state(self.dataset()?, self.direction)?;
+        let (_, contributors) =
+            selection_state(self.dataset()?, self.direction, self.interpolation_method)?;
         let renderer = renderer::Renderer::new(
             canvas,
             self.direction,
@@ -361,7 +426,8 @@ impl BinauralApp {
             .pick_direction(x, y, css_width, css_height)
             .map_err(js_error)?;
         self.direction = direction;
-        let (selection, contributors) = selection_state(self.dataset()?, direction)?;
+        let (selection, contributors) =
+            selection_state(self.dataset()?, direction, self.interpolation_method)?;
         self.renderer_mut()?
             .set_selection(direction, &contributors)
             .map_err(js_error)?;
@@ -388,10 +454,12 @@ impl BinauralApp {
 fn selection_state(
     dataset: &HrtfDataset,
     direction: Vec3,
+    interpolation_method: InterpolationMethod,
 ) -> Result<(SelectionInfo, Vec<(Vec3, f32)>), JsError> {
     let spherical = direction_to_spherical(direction).map_err(js_error)?;
-    let contributors =
-        NearestThreeInterpolator::contributors(dataset, direction).map_err(js_error)?;
+    let contributors = interpolation_method
+        .contributors(dataset, direction)
+        .map_err(js_error)?;
     let contributor_summary = contributor_summary(&contributors);
     let visuals = contributors
         .iter()
@@ -444,7 +512,7 @@ impl BinauralApp {
     }
 
     fn interpolated_hrir(&self) -> Result<hrtf::InterpolatedHrir, JsError> {
-        NearestThreeInterpolator
+        self.interpolation_method
             .interpolate(self.dataset()?, self.direction)
             .map_err(js_error)
     }
@@ -615,6 +683,22 @@ mod tests {
         assert_eq!(selection.contributor_summary.lines().count(), 3);
         assert!(selection.contributor_summary.contains("w="));
         assert!(selection.contributor_summary.contains("Δ="));
+    }
+
+    #[test]
+    fn interpolation_method_switches_contributor_count_and_hrir() {
+        let mut app = packaged_app();
+        let blended_hrir = app.current_hrir().unwrap();
+
+        let nearest = app.set_interpolation_method("nearest-neighbor").unwrap();
+        assert_eq!(nearest.contributor_summary.lines().count(), 1);
+        let nearest_hrir = app.current_hrir().unwrap();
+        assert_ne!(nearest_hrir.left, blended_hrir.left);
+        assert_ne!(nearest_hrir.right, blended_hrir.right);
+
+        let blended = app.set_interpolation_method("nearest-three").unwrap();
+        assert_eq!(blended.contributor_summary.lines().count(), 3);
+        assert_eq!(app.current_hrir().unwrap().left, blended_hrir.left);
     }
 
     #[test]

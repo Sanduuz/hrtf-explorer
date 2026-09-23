@@ -161,6 +161,7 @@ mod tests {
         assert!(INDEX_HTML.contains("data-camera-preset=\"front\""));
         assert!(INDEX_HTML.contains("data-source-preset=\"front\""));
         assert!(INDEX_HTML.contains("id=\"azimuth-number\""));
+        assert!(INDEX_HTML.contains("id=\"interpolation-method\""));
         assert!(INDEX_HTML.contains("data-camera-preset=\"bottom\""));
         assert!(INDEX_HTML.contains("id=\"hrir-plot\""));
         assert!(INDEX_HTML.contains("data-display-layer=\"measurements\""));
@@ -171,6 +172,7 @@ mod tests {
         assert!(!INDEX_HTML.contains("two fingers orbit/pinch"));
         assert!(MAIN_JS.contains("navigate_camera"));
         assert!(MAIN_JS.contains("set_display_layer"));
+        assert!(MAIN_JS.contains("set_interpolation_method"));
         assert!(MAIN_JS.contains("renderHrirPlot"));
         assert!(AUDIO_JS.contains("mapFrontFacingSceneToHeadphones"));
         assert!(AUDIO_JS.contains("MAX_VOLUME_DECIBELS = 12"));

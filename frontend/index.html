@@ -58,7 +58,7 @@
               <input id="show-axes" type="checkbox" data-display-layer="axes" checked disabled>
               Coordinate axes
             </label>
-            <label class="checkbox-label" for="show-guides" title="Orange lines connecting the source to its three HRIR contributors">
+            <label class="checkbox-label" for="show-guides" title="Orange lines connecting the source to its active HRIR contributors">
               <input id="show-guides" type="checkbox" data-display-layer="contributor-guides" checked disabled>
               Contributor guide lines
             </label>
@@ -93,7 +93,13 @@
 
         <aside class="sidebar right-sidebar">
           <section aria-labelledby="position-heading">
-            <h2 id="position-heading">Source position</h2>
+            <div class="position-title">
+              <h2 id="position-heading">Source position</h2>
+              <select id="interpolation-method" aria-label="HRIR interpolation method" title="HRIR interpolation method" disabled>
+                <option value="nearest-three">3-point linear</option>
+                <option value="nearest-neighbor">Nearest neighbor</option>
+              </select>
+            </div>
             <div class="angle-heading">
               <label for="azimuth">Azimuth (°)</label>
               <input id="azimuth-number" type="number" min="-180" max="180" step="0.1" value="37.2" aria-label="Azimuth in degrees" disabled>

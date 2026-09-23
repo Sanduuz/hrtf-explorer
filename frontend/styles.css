@@ -200,6 +200,30 @@ canvas {
   margin-top: 0.75rem;
 }
 
+.position-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.position-title h2,
+.position-title select {
+  margin: 0;
+}
+
+.position-title h2 {
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.position-title select {
+  width: 8rem;
+  min-height: 1.9rem;
+  padding: 0 1.5rem 0 0.5rem;
+  font-size: 0.72rem;
+}
+
 #audio-source-panel {
   transition: border-color 120ms ease, box-shadow 120ms ease;
 }

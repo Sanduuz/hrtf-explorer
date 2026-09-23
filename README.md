@@ -122,13 +122,13 @@ Pointer positions are converted from canvas coordinates to normalized device coo
 
 Front, back, left, right, top, and bottom buttons set canonical views without modifying the source direction. Reset returns to the initial front view and zoom distance. Camera preset and gesture mathematics remain in Rust; JavaScript only translates browser pointer events into coarse-grained WASM calls.
 
-wgpu prefers the browser WebGPU backend. Because some browsers and headless environments expose `navigator.gpu` without a usable adapter, the build also includes wgpu's WebGPU capability detection and WebGL2 backend fallback. Both paths use the same Rust renderer and WGSL scene; the active backend is shown in the UI status. WebGL2 is a compatibility path, not a replacement graphics architecture.
+wgpu prefers the browser WebGPU backend. Because some browsers and headless environments expose `navigator.gpu` without a usable adapter, the build also includes wgpu's WebGPU capability detection and WebGL2 backend fallback. Both paths use the same Rust renderer and WGSL scene. WebGL2 is a compatibility path, not a replacement graphics architecture.
 
 ## Interface
 
-The responsive vanilla HTML/CSS interface keeps the 3D view dominant and groups only the controls needed by the application: built-in/custom source selection, optional looping, file status, shared output volume, playback progress, azimuth/elevation, interpolation diagnostics, camera presets, scene-layer visibility, Play/Pause/Resume, and Stop. Azimuth and elevation can be changed with synchronized sliders or typed numeric values, while a compact strip above the scene selects the six canonical source directions without changing the camera. The right column also plots the current interpolated left and right HRIRs using one shared amplitude scale, preserving their visible relative level difference as the source moves. Looping is enabled by default so a source can be explored without repeatedly restarting a short clip. The always-visible timeline wraps against the source duration while looping, supports pointer and keyboard seeking, keeps a stable-width time label, resets without changing layout height on Stop, and uses the `AudioContext` clock rather than accumulating animation-frame deltas. Seeking recreates the one-shot Web Audio source at the requested offset while retaining the same browser-local mono buffer and real-time HRTF path; a seek performed while paused stays paused. Pause/resume uses the processing `AudioContext`, so the buffer source and Rust convolution state remain in place. A scene legend distinguishes measurements, contributors, and the selected source. Keyboard focus states and native labels are retained for basic accessibility.
+The responsive vanilla HTML/CSS interface keeps the 3D view dominant and groups only the controls needed by the application: built-in/custom source selection, optional looping, file status, shared output volume, playback progress, azimuth/elevation, interpolation method and diagnostics, camera presets, scene-layer visibility, Play/Pause/Resume, and Stop. Azimuth and elevation can be changed with synchronized sliders or typed numeric values, while a compact strip above the scene selects the six canonical source directions without changing the camera. The right column also plots the current interpolated left and right HRIRs using one shared amplitude scale, preserving their visible relative level difference as the source moves. Looping is enabled by default so a source can be explored without repeatedly restarting a short clip. The always-visible timeline wraps against the source duration while looping, supports pointer and keyboard seeking, keeps a stable-width time label, resets without changing layout height on Stop, and uses the `AudioContext` clock rather than accumulating animation-frame deltas. Seeking recreates the one-shot Web Audio source at the requested offset while retaining the same browser-local mono buffer and real-time HRTF path; a seek performed while paused stays paused. Pause/resume uses the processing `AudioContext`, so the buffer source and Rust convolution state remain in place. A scene legend distinguishes measurements, contributors, and the selected source. Keyboard focus states and native labels are retained for basic accessibility.
 
-Display options independently hide the measurement cloud, sphere grid, coordinate axes, or interpolation guides. The orange guides connect the selected source directly to its three active contributor measurements. The selected source and active contributor markers remain visible for orientation. These flags live in the Rust renderer and only skip draw calls; changing them does not rebuild GPU resources or alter interpolation and audio state.
+Display options independently hide the measurement cloud, sphere grid, coordinate axes, or interpolation guides. The orange guides connect the selected source directly to the active contributor measurements. The selected source and active contributor markers remain visible for orientation. These flags live in the Rust renderer and only skip draw calls; changing them does not rebuild GPU resources or alter interpolation and audio state.
 
 On wide screens the interface follows a three-column scientific-workstation layout: audio and display controls on the left, the visualization in the center, and position/camera controls on the right. It collapses to one column on narrower screens. When that narrow layout requires page scrolling, an unmodified wheel scrolls the page over the canvas and `Ctrl`+wheel zooms the scene; when the page fits, the wheel zooms directly.
 
@@ -159,7 +159,10 @@ The parser checks the magic, version, dimensions, exact byte length, finite samp
 
 ## Interpolation
 
-The MVP algorithm separates spatial selection from sample interpolation:
+The interpolation dropdown switches between two Rust implementations:
+
+- **Nearest neighbor** selects the closest measured direction and uses its HRIR unchanged. It is spatially discontinuous but does not blend impulse arrival times.
+- **3-point linear** is the default and separates spatial selection from sample interpolation:
 
 1. Normalize the requested direction.
 2. Calculate clamped unit-vector angular distances, which naturally handle azimuth wrapping.
@@ -167,7 +170,7 @@ The MVP algorithm separates spatial selection from sample interpolation:
 4. Normalize inverse-angular-distance weights.
 5. Apply the same weights sample-by-sample to both HRIR channels.
 
-An effectively exact match returns that measurement with weight 1, avoiding division by zero. The active contributor indices, angular distances, and weights are displayed in the debug panel; their directions are highlighted in orange in the 3D scene.
+An effectively exact match returns that measurement with weight 1, avoiding division by zero. The active contributor indices, angular distances, and weights are displayed in the debug panel; their directions are highlighted in orange in the 3D scene. Changing methods immediately updates those visuals, the HRIR plot, and the live AudioWorklet target filter.
 
 Direct sample-wise HRIR interpolation is intentionally approximate: neighboring responses can have different impulse arrival times, so combining them can smear temporal and spectral structure. The `HrirInterpolator` boundary allows a later time-aligned or sphere-triangulated method without changing consumers.
 
