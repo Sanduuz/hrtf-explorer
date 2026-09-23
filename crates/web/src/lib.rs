@@ -2,8 +2,9 @@
 
 use hrtf::{
     HrirInterpolator, HrtfDataset, InterpolatedHrir, InterpolationContributor,
-    NearestNeighborInterpolator, NearestThreeInterpolator, TimeAlignedNearestThreeInterpolator,
-    Vec3, direction_to_spherical, render_binaural, spherical_to_direction,
+    NearestNeighborInterpolator, NearestThreeInterpolator, SphericalTriangleInterpolator,
+    TimeAlignedNearestThreeInterpolator, Vec3, direction_to_spherical, render_binaural,
+    spherical_to_direction,
 };
 use wasm_bindgen::prelude::*;
 
@@ -25,6 +26,7 @@ enum InterpolationMethod {
     #[default]
     NearestThree,
     TimeAlignedNearestThree,
+    SphericalTriangle,
 }
 
 impl InterpolationMethod {
@@ -39,6 +41,9 @@ impl InterpolationMethod {
             Self::TimeAlignedNearestThree => {
                 TimeAlignedNearestThreeInterpolator::contributors(dataset, direction)
             }
+            Self::SphericalTriangle => {
+                SphericalTriangleInterpolator::contributors(dataset, direction)
+            }
         }
     }
 
@@ -52,6 +57,9 @@ impl InterpolationMethod {
             Self::NearestThree => NearestThreeInterpolator.interpolate(dataset, direction),
             Self::TimeAlignedNearestThree => {
                 TimeAlignedNearestThreeInterpolator.interpolate(dataset, direction)
+            }
+            Self::SphericalTriangle => {
+                SphericalTriangleInterpolator.interpolate(dataset, direction)
             }
         }
     }
@@ -170,7 +178,8 @@ impl BinauralApp {
 
     /// Selects the HRIR interpolation strategy and refreshes its diagnostics.
     ///
-    /// Supported methods are `nearest-neighbor`, `nearest-three`, and `time-aligned-three`.
+    /// Supported methods are `nearest-neighbor`, `nearest-three`, `time-aligned-three`, and
+    /// `spherical-triangle`.
     ///
     /// # Errors
     ///
@@ -181,6 +190,7 @@ impl BinauralApp {
             "nearest-neighbor" => InterpolationMethod::NearestNeighbor,
             "nearest-three" => InterpolationMethod::NearestThree,
             "time-aligned-three" => InterpolationMethod::TimeAlignedNearestThree,
+            "spherical-triangle" => InterpolationMethod::SphericalTriangle,
             _ => return Err(JsError::new("unknown interpolation method")),
         };
         let (selection, contributors) = selection_state(self.dataset()?, self.direction, method)?;
@@ -711,6 +721,31 @@ mod tests {
         let aligned = app.set_interpolation_method("time-aligned-three").unwrap();
         assert_eq!(aligned.contributor_summary.lines().count(), 3);
         assert_ne!(app.current_hrir().unwrap().left, blended_hrir.left);
+
+        let spherical = app.set_interpolation_method("spherical-triangle").unwrap();
+        assert_eq!(spherical.contributor_summary.lines().count(), 3);
+        assert_ne!(app.current_hrir().unwrap().left, blended_hrir.left);
+
+        let bottom = app.set_direction(0.0, -90.0).unwrap();
+        assert_eq!(bottom.contributor_summary.lines().count(), 3);
+        assert!(app.current_hrir().is_ok());
+    }
+
+    #[test]
+    #[allow(clippy::cast_precision_loss)] // The tested degree values are small exact integers.
+    fn spherical_triangle_covers_the_packaged_measurement_sphere() {
+        let mut app = packaged_app();
+        app.set_interpolation_method("spherical-triangle").unwrap();
+
+        for elevation in (-90..=90).step_by(15) {
+            for azimuth in (-180..180).step_by(15) {
+                let selection = app.set_direction(azimuth as f32, elevation as f32).unwrap();
+                assert!(matches!(
+                    selection.contributor_summary.lines().count(),
+                    1 | 3
+                ));
+            }
+        }
     }
 
     #[test]

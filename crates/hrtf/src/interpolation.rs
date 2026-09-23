@@ -6,6 +6,9 @@ use crate::{HrtfDataset, HrtfError, angular_distance, coordinates::normalized};
 
 const NEIGHBOR_COUNT: usize = 3;
 const EXACT_MATCH_RADIANS: f32 = 1.0e-5;
+const TRIANGLE_NEAREST_CANDIDATES: usize = 16;
+const TRIANGLE_AZIMUTH_BINS: usize = 16;
+const TRIANGLE_EPSILON: f32 = 1.0e-6;
 
 /// A selected measurement and its normalized contribution.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -200,6 +203,90 @@ impl HrirInterpolator for TimeAlignedNearestThreeInterpolator {
     }
 }
 
+/// Selects a local spherical triangle containing the target and uses spherical-area weights.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct SphericalTriangleInterpolator;
+
+impl SphericalTriangleInterpolator {
+    /// Returns the vertices and normalized spherical barycentric weights of a local containing
+    /// triangle. Candidate directions include both the nearest measurements and azimuthally
+    /// distributed neighbors, which keeps polar and sparsely measured regions covered.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an invalid direction, fewer than three measurements, or if no
+    /// non-degenerate containing triangle can be found.
+    pub fn contributors(
+        dataset: &HrtfDataset,
+        direction: Vec3,
+    ) -> Result<Vec<InterpolationContributor>, HrtfError> {
+        if dataset.measurements().len() < NEIGHBOR_COUNT {
+            return Err(HrtfError::NotEnoughMeasurements {
+                available: dataset.measurements().len(),
+                required: NEIGHBOR_COUNT,
+            });
+        }
+        let direction = normalized(direction)?;
+        let distances = sorted_distances(dataset, direction)?;
+        if distances[0].1 <= EXACT_MATCH_RADIANS {
+            return Ok(vec![InterpolationContributor {
+                measurement_index: distances[0].0,
+                angular_distance_radians: distances[0].1,
+                weight: 1.0,
+            }]);
+        }
+
+        let candidates = triangle_candidate_indices(dataset, direction, &distances);
+        let mut best: Option<(f32, [(usize, f32); NEIGHBOR_COUNT])> = None;
+        for first in 0..candidates.len().saturating_sub(2) {
+            for second in first + 1..candidates.len().saturating_sub(1) {
+                for third in second + 1..candidates.len() {
+                    let indices = [candidates[first], candidates[second], candidates[third]];
+                    let vertices = indices.map(|index| dataset.measurements()[index].direction);
+                    let Some((weights, area)) = spherical_triangle_weights(direction, vertices)
+                    else {
+                        continue;
+                    };
+                    if best.as_ref().is_none_or(|(best_area, _)| area < *best_area) {
+                        best = Some((
+                            area,
+                            std::array::from_fn(|index| (indices[index], weights[index])),
+                        ));
+                    }
+                }
+            }
+        }
+
+        let (_, triangle) = best.ok_or(HrtfError::NoContainingTriangle)?;
+        triangle
+            .into_iter()
+            .map(|(measurement_index, weight)| {
+                Ok(InterpolationContributor {
+                    measurement_index,
+                    angular_distance_radians: angular_distance(
+                        direction,
+                        dataset.measurements()[measurement_index].direction,
+                    )?,
+                    weight,
+                })
+            })
+            .collect()
+    }
+}
+
+impl HrirInterpolator for SphericalTriangleInterpolator {
+    fn interpolate(
+        &self,
+        dataset: &HrtfDataset,
+        direction: Vec3,
+    ) -> Result<InterpolatedHrir, HrtfError> {
+        Ok(interpolate_contributors(
+            dataset,
+            Self::contributors(dataset, direction)?,
+        ))
+    }
+}
+
 fn sorted_distances(
     dataset: &HrtfDataset,
     direction: Vec3,
@@ -215,6 +302,94 @@ fn sorted_distances(
         .collect::<Result<Vec<_>, _>>()?;
     distances.sort_by(|left, right| left.1.partial_cmp(&right.1).unwrap_or(Ordering::Equal));
     Ok(distances)
+}
+
+fn triangle_candidate_indices(
+    dataset: &HrtfDataset,
+    direction: Vec3,
+    distances: &[(usize, f32)],
+) -> Vec<usize> {
+    let mut candidates = distances
+        .iter()
+        .take(TRIANGLE_NEAREST_CANDIDATES)
+        .map(|(index, _)| *index)
+        .collect::<Vec<_>>();
+    let reference = if direction.y.abs() < 0.9 {
+        Vec3::Y
+    } else {
+        Vec3::X
+    };
+    let tangent_x = direction.cross(reference).normalize();
+    let tangent_y = direction.cross(tangent_x).normalize();
+    let mut bins = [None; TRIANGLE_AZIMUTH_BINS];
+
+    for (index, measurement) in dataset.measurements().iter().enumerate() {
+        let x = measurement.direction.dot(tangent_x);
+        let y = measurement.direction.dot(tangent_y);
+        if x.mul_add(x, y * y) <= TRIANGLE_EPSILON {
+            continue;
+        }
+        let angle = y.atan2(x) + std::f32::consts::PI;
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_precision_loss,
+            clippy::cast_sign_loss
+        )]
+        // The fixed bin count is small and the angle has already been bounded to one turn.
+        let bin = ((angle / std::f32::consts::TAU * TRIANGLE_AZIMUTH_BINS as f32) as usize)
+            .min(TRIANGLE_AZIMUTH_BINS - 1);
+        let distance = direction.dot(measurement.direction).clamp(-1.0, 1.0).acos();
+        if bins[bin].is_none_or(|(_, best_distance)| distance < best_distance) {
+            bins[bin] = Some((index, distance));
+        }
+    }
+    for (index, _) in bins.into_iter().flatten() {
+        if !candidates.contains(&index) {
+            candidates.push(index);
+        }
+    }
+    candidates
+}
+
+fn spherical_triangle_weights(
+    target: Vec3,
+    vertices: [Vec3; NEIGHBOR_COUNT],
+) -> Option<([f32; NEIGHBOR_COUNT], f32)> {
+    let [first, second, third] = vertices;
+    if !same_spherical_side(first, second, target, third)
+        || !same_spherical_side(second, third, target, first)
+        || !same_spherical_side(third, first, target, second)
+    {
+        return None;
+    }
+
+    let area = spherical_triangle_area(first, second, third);
+    if !area.is_finite() || !(TRIANGLE_EPSILON..std::f32::consts::TAU).contains(&area) {
+        return None;
+    }
+    let sub_areas = [
+        spherical_triangle_area(target, second, third),
+        spherical_triangle_area(target, third, first),
+        spherical_triangle_area(target, first, second),
+    ];
+    let sum = sub_areas.iter().sum::<f32>();
+    if !sum.is_finite() || sum <= TRIANGLE_EPSILON || (sum - area).abs() > 1.0e-3 {
+        return None;
+    }
+    Some((sub_areas.map(|sub_area| sub_area / sum), area))
+}
+
+fn same_spherical_side(edge_start: Vec3, edge_end: Vec3, target: Vec3, opposite: Vec3) -> bool {
+    let normal = edge_start.cross(edge_end);
+    let target_side = normal.dot(target);
+    let opposite_side = normal.dot(opposite);
+    opposite_side.abs() > TRIANGLE_EPSILON && target_side * opposite_side >= -TRIANGLE_EPSILON
+}
+
+fn spherical_triangle_area(first: Vec3, second: Vec3, third: Vec3) -> f32 {
+    let numerator = first.dot(second.cross(third)).abs();
+    let denominator = 1.0 + first.dot(second) + second.dot(third) + third.dot(first);
+    2.0 * numerator.atan2(denominator).abs()
 }
 
 fn interpolate_contributors(
@@ -416,6 +591,88 @@ mod tests {
 
         assert_eq!(aligned.left, dataset.measurements()[1].left);
         assert_eq!(aligned.right, dataset.measurements()[1].right);
+    }
+
+    #[test]
+    fn spherical_triangle_uses_normalized_area_weights() {
+        let dataset = HrtfDataset::new(
+            48_000,
+            [(Vec3::X, 1.0), (Vec3::Y, 4.0), (Vec3::Z, 7.0)]
+                .into_iter()
+                .map(|(direction, sample)| {
+                    HrirMeasurement::new(direction, vec![sample], vec![sample * 10.0]).unwrap()
+                })
+                .collect(),
+        )
+        .unwrap();
+
+        let result = SphericalTriangleInterpolator
+            .interpolate(&dataset, Vec3::ONE.normalize())
+            .unwrap();
+
+        assert_eq!(result.contributors.len(), 3);
+        assert!(
+            result
+                .contributors
+                .iter()
+                .all(|entry| entry.weight.is_finite() && entry.weight > 0.0)
+        );
+        assert!(
+            (result
+                .contributors
+                .iter()
+                .map(|entry| entry.weight)
+                .sum::<f32>()
+                - 1.0)
+                .abs()
+                < 1.0e-6
+        );
+        assert!(
+            result
+                .contributors
+                .iter()
+                .all(|entry| (entry.weight - 1.0 / 3.0).abs() < 1.0e-6)
+        );
+        assert!((result.left[0] - 4.0).abs() < 1.0e-6);
+        assert!((result.right[0] - 40.0).abs() < 1.0e-5);
+    }
+
+    #[test]
+    fn spherical_triangle_crosses_the_azimuth_seam() {
+        let measurements = [(170.0, -10.0), (-170.0, -10.0), (180.0, 20.0)]
+            .into_iter()
+            .map(|(azimuth, elevation)| {
+                HrirMeasurement::new(
+                    spherical_to_direction(azimuth, elevation),
+                    vec![1.0],
+                    vec![1.0],
+                )
+                .unwrap()
+            })
+            .collect();
+        let dataset = HrtfDataset::new(48_000, measurements).unwrap();
+
+        let contributors = SphericalTriangleInterpolator::contributors(
+            &dataset,
+            spherical_to_direction(180.0, 0.0),
+        )
+        .unwrap();
+
+        assert_eq!(contributors.len(), 3);
+        assert!(contributors.iter().all(|entry| entry.weight >= 0.0));
+        assert!((contributors.iter().map(|entry| entry.weight).sum::<f32>() - 1.0).abs() < 1.0e-6);
+    }
+
+    #[test]
+    fn spherical_triangle_preserves_an_exact_measurement() {
+        let dataset = synthetic_dataset();
+        let result = SphericalTriangleInterpolator
+            .interpolate(&dataset, Vec3::X)
+            .unwrap();
+
+        assert_eq!(result.left, dataset.measurements()[1].left);
+        assert_eq!(result.right, dataset.measurements()[1].right);
+        assert_eq!(result.contributors.len(), 1);
     }
 
     #[test]

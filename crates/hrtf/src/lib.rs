@@ -20,7 +20,7 @@ pub use dataset::{HrirMeasurement, HrtfDataset};
 pub use glam::Vec3;
 pub use interpolation::{
     HrirInterpolator, InterpolatedHrir, InterpolationContributor, NearestNeighborInterpolator,
-    NearestThreeInterpolator, TimeAlignedNearestThreeInterpolator,
+    NearestThreeInterpolator, SphericalTriangleInterpolator, TimeAlignedNearestThreeInterpolator,
 };
 
 use std::{error::Error, fmt};
@@ -36,6 +36,7 @@ pub enum HrtfError {
     InvalidSampleRate,
     InvalidDatasetBytes(&'static str),
     NotEnoughMeasurements { available: usize, required: usize },
+    NoContainingTriangle,
     NonFiniteSample,
 }
 
@@ -65,6 +66,12 @@ impl fmt::Display for HrtfError {
                 formatter,
                 "not enough HRTF measurements: found {available}, need at least {required}"
             ),
+            Self::NoContainingTriangle => {
+                write!(
+                    formatter,
+                    "no containing spherical measurement triangle was found"
+                )
+            }
             Self::NonFiniteSample => write!(formatter, "audio and HRIR samples must be finite"),
         }
     }

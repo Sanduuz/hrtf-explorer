@@ -317,7 +317,8 @@ export class BinauralApp {
     /**
      * Selects the HRIR interpolation strategy and refreshes its diagnostics.
      *
-     * Supported methods are `nearest-neighbor`, `nearest-three`, and `time-aligned-three`.
+     * Supported methods are `nearest-neighbor`, `nearest-three`, `time-aligned-three`, and
+     * `spherical-triangle`.
      *
      * # Errors
      *

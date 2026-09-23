@@ -162,6 +162,7 @@ mod tests {
         assert!(INDEX_HTML.contains("data-source-preset=\"front\""));
         assert!(INDEX_HTML.contains("id=\"azimuth-number\""));
         assert!(INDEX_HTML.contains("id=\"interpolation-method\""));
+        assert!(INDEX_HTML.contains("value=\"spherical-triangle\""));
         assert!(INDEX_HTML.contains("data-camera-preset=\"bottom\""));
         assert!(INDEX_HTML.contains("id=\"hrir-plot\""));
         assert!(INDEX_HTML.contains("data-display-layer=\"measurements\""));
