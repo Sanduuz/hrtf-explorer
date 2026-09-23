@@ -159,10 +159,13 @@ The parser checks the magic, version, dimensions, exact byte length, finite samp
 
 ## Interpolation
 
-The interpolation dropdown switches between two Rust implementations:
+The interpolation dropdown switches between three Rust implementations:
 
 - **Nearest neighbor** selects the closest measured direction and uses its HRIR unchanged. It is spatially discontinuous but does not blend impulse arrival times.
-- **3-point linear** is the default and separates spatial selection from sample interpolation:
+- **3-point linear** is the default and directly combines corresponding HRIR samples.
+- **Time-aligned 3-point** uses the same neighbors and weights, estimates each ear's peak arrival with sub-sample parabolic refinement, aligns responses before mixing, and restores the weighted left/right delays independently. This reduces multi-peak smearing while retaining interpolated interaural delay. Exact measurement hits bypass shifting and remain bit-identical.
+
+Both 3-point methods share the same spatial selection:
 
 1. Normalize the requested direction.
 2. Calculate clamped unit-vector angular distances, which naturally handle azimuth wrapping.
@@ -172,7 +175,7 @@ The interpolation dropdown switches between two Rust implementations:
 
 An effectively exact match returns that measurement with weight 1, avoiding division by zero. The active contributor indices, angular distances, and weights are displayed in the debug panel; their directions are highlighted in orange in the 3D scene. Changing methods immediately updates those visuals, the HRIR plot, and the live AudioWorklet target filter.
 
-Direct sample-wise HRIR interpolation is intentionally approximate: neighboring responses can have different impulse arrival times, so combining them can smear temporal and spectral structure. The `HrirInterpolator` boundary allows a later time-aligned or sphere-triangulated method without changing consumers.
+Direct sample-wise HRIR interpolation is intentionally approximate: neighboring responses can have different impulse arrival times, so combining them can smear temporal and spectral structure. Time alignment reduces that problem but uses peak arrival as a deliberately simple delay estimate. The `HrirInterpolator` boundary allows later sphere-triangulated, minimum-phase, frequency-domain, and spherical-harmonic methods without changing consumers.
 
 ## Graphics-to-DSP integration
 

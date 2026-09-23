@@ -134,6 +134,72 @@ impl HrirInterpolator for NearestThreeInterpolator {
     }
 }
 
+/// Three-neighbor interpolation that aligns each ear's peak arrival before blending.
+///
+/// Left and right delays are estimated and restored independently, retaining the interpolated
+/// interaural time difference. Exact measurement hits bypass shifting and return the original
+/// samples unchanged.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct TimeAlignedNearestThreeInterpolator;
+
+impl TimeAlignedNearestThreeInterpolator {
+    /// Uses the same inverse-angular-distance spatial contributors as
+    /// [`NearestThreeInterpolator`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the direction is invalid or the dataset has fewer than three
+    /// measurements.
+    pub fn contributors(
+        dataset: &HrtfDataset,
+        direction: Vec3,
+    ) -> Result<Vec<InterpolationContributor>, HrtfError> {
+        NearestThreeInterpolator::contributors(dataset, direction)
+    }
+}
+
+impl HrirInterpolator for TimeAlignedNearestThreeInterpolator {
+    fn interpolate(
+        &self,
+        dataset: &HrtfDataset,
+        direction: Vec3,
+    ) -> Result<InterpolatedHrir, HrtfError> {
+        let contributors = Self::contributors(dataset, direction)?;
+        if contributors.len() == 1 {
+            return Ok(interpolate_contributors(dataset, contributors));
+        }
+
+        let left_responses = contributors
+            .iter()
+            .map(|contributor| {
+                (
+                    dataset.measurements()[contributor.measurement_index]
+                        .left
+                        .as_slice(),
+                    contributor.weight,
+                )
+            })
+            .collect::<Vec<_>>();
+        let right_responses = contributors
+            .iter()
+            .map(|contributor| {
+                (
+                    dataset.measurements()[contributor.measurement_index]
+                        .right
+                        .as_slice(),
+                    contributor.weight,
+                )
+            })
+            .collect::<Vec<_>>();
+
+        Ok(InterpolatedHrir {
+            left: interpolate_time_aligned_channel(&left_responses, dataset.hrir_length()),
+            right: interpolate_time_aligned_channel(&right_responses, dataset.hrir_length()),
+            contributors,
+        })
+    }
+}
+
 fn sorted_distances(
     dataset: &HrtfDataset,
     direction: Vec3,
@@ -173,6 +239,74 @@ fn interpolate_contributors(
         right,
         contributors,
     }
+}
+
+fn interpolate_time_aligned_channel(responses: &[(&[f32], f32)], output_length: usize) -> Vec<f32> {
+    let delays = responses
+        .iter()
+        .map(|(response, _)| peak_delay(response))
+        .collect::<Vec<_>>();
+    let interpolated_delay = responses
+        .iter()
+        .zip(&delays)
+        .map(|((_, weight), delay)| weight * delay)
+        .sum::<f32>();
+    let mut aligned = vec![0.0; output_length];
+
+    for ((response, weight), delay) in responses.iter().zip(&delays) {
+        let mut source_position = *delay;
+        for output in &mut aligned {
+            *output += weight * linear_sample(response, source_position);
+            source_position += 1.0;
+        }
+    }
+
+    let mut source_position = -interpolated_delay;
+    (0..output_length)
+        .map(|_| {
+            let sample = linear_sample(&aligned, source_position);
+            source_position += 1.0;
+            sample
+        })
+        .collect()
+}
+
+#[allow(clippy::cast_precision_loss)] // Runtime HRIR lengths are format-limited u32 values.
+fn peak_delay(response: &[f32]) -> f32 {
+    let (peak_index, peak) = response
+        .iter()
+        .enumerate()
+        .map(|(index, sample)| (index, sample.abs()))
+        .max_by(|left, right| left.1.partial_cmp(&right.1).unwrap_or(Ordering::Equal))
+        .unwrap_or((0, 0.0));
+    if peak == 0.0 || peak_index == 0 || peak_index + 1 >= response.len() {
+        return peak_index as f32;
+    }
+
+    let before = response[peak_index - 1].abs();
+    let after = response[peak_index + 1].abs();
+    let denominator = before - 2.0 * peak + after;
+    let fractional = if denominator.abs() > f32::EPSILON {
+        (0.5 * (before - after) / denominator).clamp(-0.5, 0.5)
+    } else {
+        0.0
+    };
+    peak_index as f32 + fractional
+}
+
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss
+)] // Bounds checks make the f32-to-index conversion non-negative and in range.
+fn linear_sample(samples: &[f32], position: f32) -> f32 {
+    if position < 0.0 || position > (samples.len() - 1) as f32 {
+        return 0.0;
+    }
+    let lower = position.floor() as usize;
+    let upper = (lower + 1).min(samples.len() - 1);
+    let fraction = position - lower as f32;
+    samples[lower] * (1.0 - fraction) + samples[upper] * fraction
 }
 
 #[cfg(test)]
@@ -224,6 +358,64 @@ mod tests {
         assert_eq!(result.contributors.len(), 1);
         assert_eq!(result.contributors[0].measurement_index, 1);
         assert!((result.contributors[0].weight - 1.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn time_alignment_combines_delayed_impulses_without_three_separate_peaks() {
+        fn impulse(index: usize) -> Vec<f32> {
+            let mut response = vec![0.0; 8];
+            response[index] = 1.0;
+            response
+        }
+
+        let dataset = HrtfDataset::new(
+            48_000,
+            [(Vec3::X, 1, 2), (Vec3::Y, 3, 4), (Vec3::Z, 5, 6)]
+                .into_iter()
+                .map(|(direction, left, right)| {
+                    HrirMeasurement::new(direction, impulse(left), impulse(right)).unwrap()
+                })
+                .collect(),
+        )
+        .unwrap();
+        let direction = Vec3::ONE.normalize();
+
+        let direct = NearestThreeInterpolator
+            .interpolate(&dataset, direction)
+            .unwrap();
+        let aligned = TimeAlignedNearestThreeInterpolator
+            .interpolate(&dataset, direction)
+            .unwrap();
+
+        assert_eq!(
+            direct.left.iter().filter(|sample| **sample > 0.3).count(),
+            3
+        );
+        assert!(aligned.left[3] > 0.99);
+        assert!(aligned.right[4] > 0.99);
+        assert_eq!(
+            aligned.left.iter().filter(|sample| **sample > 0.01).count(),
+            1
+        );
+        assert_eq!(
+            aligned
+                .right
+                .iter()
+                .filter(|sample| **sample > 0.01)
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn time_alignment_preserves_an_exact_measurement_bit_for_bit() {
+        let dataset = synthetic_dataset();
+        let aligned = TimeAlignedNearestThreeInterpolator
+            .interpolate(&dataset, Vec3::X)
+            .unwrap();
+
+        assert_eq!(aligned.left, dataset.measurements()[1].left);
+        assert_eq!(aligned.right, dataset.measurements()[1].right);
     }
 
     #[test]

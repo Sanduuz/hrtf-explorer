@@ -2,8 +2,8 @@
 
 use hrtf::{
     HrirInterpolator, HrtfDataset, InterpolatedHrir, InterpolationContributor,
-    NearestNeighborInterpolator, NearestThreeInterpolator, Vec3, direction_to_spherical,
-    render_binaural, spherical_to_direction,
+    NearestNeighborInterpolator, NearestThreeInterpolator, TimeAlignedNearestThreeInterpolator,
+    Vec3, direction_to_spherical, render_binaural, spherical_to_direction,
 };
 use wasm_bindgen::prelude::*;
 
@@ -24,6 +24,7 @@ enum InterpolationMethod {
     NearestNeighbor,
     #[default]
     NearestThree,
+    TimeAlignedNearestThree,
 }
 
 impl InterpolationMethod {
@@ -35,6 +36,9 @@ impl InterpolationMethod {
         match self {
             Self::NearestNeighbor => NearestNeighborInterpolator::contributors(dataset, direction),
             Self::NearestThree => NearestThreeInterpolator::contributors(dataset, direction),
+            Self::TimeAlignedNearestThree => {
+                TimeAlignedNearestThreeInterpolator::contributors(dataset, direction)
+            }
         }
     }
 
@@ -46,6 +50,9 @@ impl InterpolationMethod {
         match self {
             Self::NearestNeighbor => NearestNeighborInterpolator.interpolate(dataset, direction),
             Self::NearestThree => NearestThreeInterpolator.interpolate(dataset, direction),
+            Self::TimeAlignedNearestThree => {
+                TimeAlignedNearestThreeInterpolator.interpolate(dataset, direction)
+            }
         }
     }
 }
@@ -163,7 +170,7 @@ impl BinauralApp {
 
     /// Selects the HRIR interpolation strategy and refreshes its diagnostics.
     ///
-    /// Supported methods are `nearest-neighbor` and `nearest-three`.
+    /// Supported methods are `nearest-neighbor`, `nearest-three`, and `time-aligned-three`.
     ///
     /// # Errors
     ///
@@ -173,6 +180,7 @@ impl BinauralApp {
         let method = match method {
             "nearest-neighbor" => InterpolationMethod::NearestNeighbor,
             "nearest-three" => InterpolationMethod::NearestThree,
+            "time-aligned-three" => InterpolationMethod::TimeAlignedNearestThree,
             _ => return Err(JsError::new("unknown interpolation method")),
         };
         let (selection, contributors) = selection_state(self.dataset()?, self.direction, method)?;
@@ -699,6 +707,10 @@ mod tests {
         let blended = app.set_interpolation_method("nearest-three").unwrap();
         assert_eq!(blended.contributor_summary.lines().count(), 3);
         assert_eq!(app.current_hrir().unwrap().left, blended_hrir.left);
+
+        let aligned = app.set_interpolation_method("time-aligned-three").unwrap();
+        assert_eq!(aligned.contributor_summary.lines().count(), 3);
+        assert_ne!(app.current_hrir().unwrap().left, blended_hrir.left);
     }
 
     #[test]

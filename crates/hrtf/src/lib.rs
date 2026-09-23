@@ -20,7 +20,7 @@ pub use dataset::{HrirMeasurement, HrtfDataset};
 pub use glam::Vec3;
 pub use interpolation::{
     HrirInterpolator, InterpolatedHrir, InterpolationContributor, NearestNeighborInterpolator,
-    NearestThreeInterpolator,
+    NearestThreeInterpolator, TimeAlignedNearestThreeInterpolator,
 };
 
 use std::{error::Error, fmt};
