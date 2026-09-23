@@ -1,0 +1,273 @@
+let wasm_bindgen = (function(exports) {
+    let script_src;
+    if (typeof document !== 'undefined' && document.currentScript !== null) {
+        script_src = new URL(document.currentScript.src, location.href).toString();
+    }
+
+    /**
+     * Long-lived real-time DSP state owned by the browser audio rendering thread.
+     */
+    class RealtimeAudioProcessor {
+        __destroy_into_raw() {
+            const ptr = this.__wbg_ptr;
+            this.__wbg_ptr = 0;
+            RealtimeAudioProcessorFinalization.unregister(this);
+            return ptr;
+        }
+        free() {
+            const ptr = this.__destroy_into_raw();
+            wasm.__wbg_realtimeaudioprocessor_free(ptr, 0);
+        }
+        /**
+         * Current Web Audio render quantum size.
+         * @returns {number}
+         */
+        block_size() {
+            const ret = wasm.realtimeaudioprocessor_block_size(this.__wbg_ptr);
+            return ret >>> 0;
+        }
+        /**
+         * Byte offset of the fixed mono input block in WASM linear memory.
+         * @returns {number}
+         */
+        input_ptr() {
+            const ret = wasm.realtimeaudioprocessor_input_ptr(this.__wbg_ptr);
+            return ret >>> 0;
+        }
+        /**
+         * Reports whether the initial HRIR passed validation.
+         * @returns {boolean}
+         */
+        is_valid() {
+            const ret = wasm.realtimeaudioprocessor_is_valid(this.__wbg_ptr);
+            return ret !== 0;
+        }
+        /**
+         * Byte offset of the fixed left output block in WASM linear memory.
+         * @returns {number}
+         */
+        left_output_ptr() {
+            const ret = wasm.realtimeaudioprocessor_left_output_ptr(this.__wbg_ptr);
+            return ret >>> 0;
+        }
+        /**
+         * Creates the processor with an initial device-ordered stereo HRIR.
+         * @param {Float32Array} left
+         * @param {Float32Array} right
+         * @param {number} fade_length_samples
+         */
+        constructor(left, right, fade_length_samples) {
+            const ptr0 = passArrayF32ToWasm0(left, wasm.__wbindgen_malloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ptr1 = passArrayF32ToWasm0(right, wasm.__wbindgen_malloc);
+            const len1 = WASM_VECTOR_LEN;
+            const ret = wasm.realtimeaudioprocessor_new(ptr0, len0, ptr1, len1, fade_length_samples);
+            this.__wbg_ptr = ret;
+            RealtimeAudioProcessorFinalization.register(this, this.__wbg_ptr, this);
+            return this;
+        }
+        /**
+         * Processes the queued fixed-size input block without allocating.
+         * @returns {boolean}
+         */
+        process_queued_block() {
+            const ret = wasm.realtimeaudioprocessor_process_queued_block(this.__wbg_ptr);
+            return ret !== 0;
+        }
+        /**
+         * Byte offset of the fixed right output block in WASM linear memory.
+         * @returns {number}
+         */
+        right_output_ptr() {
+            const ret = wasm.realtimeaudioprocessor_right_output_ptr(this.__wbg_ptr);
+            return ret >>> 0;
+        }
+        /**
+         * Resizes the reusable input/output blocks for a browser render-quantum change.
+         *
+         * The normal 128-sample path never calls this after initialization. A browser that changes
+         * quantum size pays for allocation once at the transition, then returns to allocation-free
+         * block processing.
+         * @param {number} block_size
+         * @returns {boolean}
+         */
+        set_block_size(block_size) {
+            const ret = wasm.realtimeaudioprocessor_set_block_size(this.__wbg_ptr, block_size);
+            return ret !== 0;
+        }
+        /**
+         * Begins a smooth transition to a new device-ordered HRIR, returning false on invalid input.
+         * @param {Float32Array} left
+         * @param {Float32Array} right
+         * @returns {boolean}
+         */
+        set_hrir(left, right) {
+            const ptr0 = passArrayF32ToWasm0(left, wasm.__wbindgen_malloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ptr1 = passArrayF32ToWasm0(right, wasm.__wbindgen_malloc);
+            const len1 = WASM_VECTOR_LEN;
+            const ret = wasm.realtimeaudioprocessor_set_hrir(this.__wbg_ptr, ptr0, len0, ptr1, len1);
+            return ret !== 0;
+        }
+    }
+    if (Symbol.dispose) RealtimeAudioProcessor.prototype[Symbol.dispose] = RealtimeAudioProcessor.prototype.free;
+    exports.RealtimeAudioProcessor = RealtimeAudioProcessor;
+    function __wbg_get_imports() {
+        const import0 = {
+            __proto__: null,
+            __wbg___wbindgen_throw_5d9e815e6fdf150f: function(arg0, arg1) {
+                throw new Error(getStringFromWasm0(arg0, arg1));
+            },
+            __wbindgen_init_externref_table: function() {
+                const table = wasm.__wbindgen_externrefs;
+                const offset = table.grow(4);
+                table.set(0, undefined);
+                table.set(offset + 0, undefined);
+                table.set(offset + 1, null);
+                table.set(offset + 2, true);
+                table.set(offset + 3, false);
+            },
+        };
+        return {
+            __proto__: null,
+            "./binaural_audio_worklet_nomodule_bg.js": import0,
+        };
+    }
+
+    const RealtimeAudioProcessorFinalization = (typeof FinalizationRegistry === 'undefined')
+        ? { register: () => {}, unregister: () => {} }
+        : new FinalizationRegistry(ptr => wasm.__wbg_realtimeaudioprocessor_free(ptr, 1));
+
+    let cachedFloat32ArrayMemory0 = null;
+    function getFloat32ArrayMemory0() {
+        if (cachedFloat32ArrayMemory0 === null || cachedFloat32ArrayMemory0.byteLength === 0) {
+            cachedFloat32ArrayMemory0 = new Float32Array(wasm.memory.buffer);
+        }
+        return cachedFloat32ArrayMemory0;
+    }
+
+    function getStringFromWasm0(ptr, len) {
+        return decodeText(ptr >>> 0, len);
+    }
+
+    let cachedUint8ArrayMemory0 = null;
+    function getUint8ArrayMemory0() {
+        if (cachedUint8ArrayMemory0 === null || cachedUint8ArrayMemory0.byteLength === 0) {
+            cachedUint8ArrayMemory0 = new Uint8Array(wasm.memory.buffer);
+        }
+        return cachedUint8ArrayMemory0;
+    }
+
+    function passArrayF32ToWasm0(arg, malloc) {
+        const ptr = malloc(arg.length * 4, 4) >>> 0;
+        getFloat32ArrayMemory0().set(arg, ptr / 4);
+        WASM_VECTOR_LEN = arg.length;
+        return ptr;
+    }
+
+    let cachedTextDecoder = new TextDecoder('utf-8', { ignoreBOM: true, fatal: true });
+    cachedTextDecoder.decode();
+    function decodeText(ptr, len) {
+        return cachedTextDecoder.decode(getUint8ArrayMemory0().subarray(ptr, ptr + len));
+    }
+
+    let WASM_VECTOR_LEN = 0;
+
+    let wasmModule, wasmInstance, wasm;
+    function __wbg_finalize_init(instance, module) {
+        wasmInstance = instance;
+        wasm = instance.exports;
+        wasmModule = module;
+        cachedFloat32ArrayMemory0 = null;
+        cachedUint8ArrayMemory0 = null;
+        wasm.__wbindgen_start();
+        return wasm;
+    }
+
+    async function __wbg_load(module, imports) {
+        if (typeof Response === 'function' && module instanceof Response) {
+            if (!module.ok) {
+                throw new Error(`failed to fetch Wasm: ${module.status} ${module.statusText} fetching '${module.url}'`);
+            }
+
+            if (typeof WebAssembly.instantiateStreaming === 'function') {
+                try {
+                    return await WebAssembly.instantiateStreaming(module, imports);
+                } catch (e) {
+                    const validResponse = expectedResponseType(module.type);
+
+                    if (validResponse && module.headers.get('Content-Type') !== 'application/wasm') {
+                        console.warn("`WebAssembly.instantiateStreaming` failed because your server does not serve Wasm with `application/wasm` MIME type. Falling back to `WebAssembly.instantiate` which is slower. Original error:\n", e);
+
+                    } else { throw e; }
+                }
+            }
+
+            const bytes = await module.arrayBuffer();
+            return await WebAssembly.instantiate(bytes, imports);
+        } else {
+            const instance = await WebAssembly.instantiate(module, imports);
+
+            if (instance instanceof WebAssembly.Instance) {
+                return { instance, module };
+            } else {
+                return instance;
+            }
+        }
+
+        function expectedResponseType(type) {
+            switch (type) {
+                case 'basic': case 'cors': case 'default': return true;
+            }
+            return false;
+        }
+    }
+
+    function initSync(module) {
+        if (wasm !== undefined) return wasm;
+
+
+        if (module !== undefined) {
+            if (Object.getPrototypeOf(module) === Object.prototype) {
+                ({module} = module)
+            } else {
+                console.warn('using deprecated parameters for `initSync()`; pass a single object instead')
+            }
+        }
+
+        const imports = __wbg_get_imports();
+        if (!(module instanceof WebAssembly.Module)) {
+            module = new WebAssembly.Module(module);
+        }
+        const instance = new WebAssembly.Instance(module, imports);
+        return __wbg_finalize_init(instance, module);
+    }
+
+    async function __wbg_init(module_or_path) {
+        if (wasm !== undefined) return wasm;
+
+
+        if (module_or_path !== undefined) {
+            if (Object.getPrototypeOf(module_or_path) === Object.prototype) {
+                ({module_or_path} = module_or_path)
+            } else {
+                console.warn('using deprecated parameters for the initialization function; pass a single object instead')
+            }
+        }
+
+        if (module_or_path === undefined && script_src !== undefined) {
+            module_or_path = script_src.replace(/\.js$/, "_bg.wasm");
+        }
+        const imports = __wbg_get_imports();
+
+        if (typeof module_or_path === 'string' || (typeof Request === 'function' && module_or_path instanceof Request) || (typeof URL === 'function' && module_or_path instanceof URL)) {
+            module_or_path = fetch(module_or_path);
+        }
+
+        const { instance, module } = await __wbg_load(await module_or_path, imports);
+
+        return __wbg_finalize_init(instance, module);
+    }
+
+    return Object.assign(__wbg_init, { initSync }, exports);
+})({ __proto__: null });

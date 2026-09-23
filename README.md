@@ -1,0 +1,215 @@
+# Binaural HRTF Explorer
+
+A browser-oriented application for exploring binaural audio with measured head-related impulse responses (HRIRs). The repository implements the original MVP plus real-time source movement: a native spatial/DSP core, an offline dataset converter, a packaged MIT KEMAR dataset, Rust/WASM AudioWorklet processing, an interactive Rust/wgpu source-sphere scene, measurement/interpolation visualization, browser-local custom audio uploads, and a responsive interface served by Axum.
+
+The browser page loads the real dataset into Rust/WASM, renders a pre-existing CC0 human head inside a spherical grid, supports orbit/zoom and ray-cast source dragging, and spatializes built-in or uploaded audio in real time. The source can move while audio is playing. Uploaded audio never leaves the browser.
+
+## Current architecture
+
+```text
+                    Browser
+                       |
+       +---------------+---------------+
+       |               |               |
+      DOM          Web Audio         Canvas
+       |               |               |
+       |       AudioWorklet/WASM    Rust/wgpu
+       |               |               |
+       +-------- JavaScript glue -------+
+                       |
+                 wasm-bindgen
+                       |
+             +---------+---------+
+             |                   |
+          HRTF core          Renderer
+             |
+     interpolation + stateful
+       block convolution
+
+                    Axum
+                      |
+              static/data serving
+```
+
+Workspace layout:
+
+- `crates/hrtf`: native Rust coordinate math, validated runtime dataset representation, interpolation, convolution, and binaural rendering. It has no browser, WASM, Web Audio, server, or GPU dependency.
+- `crates/audio-worklet`: a small `wasm-bindgen` boundary around the stateful real-time convolver. It deliberately has no renderer or dataset parser.
+- `crates/web`: coarse-grained `wasm-bindgen` interface owning browser-side dataset, source direction, camera, picking, head-mesh preprocessing, and wgpu renderer state.
+- `tools/hrtf-convert`: offline converter for the official compact MIT KEMAR WAV archive.
+- `server`: intentionally small Axum binary. It embeds and serves the HTML/CSS/JavaScript, generated WASM, and converted dataset.
+- `frontend`: minimal vanilla interface, a small Web Audio adapter, and generated `wasm-bindgen` artifacts.
+- `docs/mit-kemar.md`: verified source metadata, conversion decisions, and attribution.
+
+## Development
+
+The minimum supported Rust version is 1.85.
+
+```bash
+cargo test --workspace
+cargo run -p binaural-explorer-server
+```
+
+Then open <http://127.0.0.1:3000>.
+
+To rebuild the browser module, install the target and a CLI version matching the workspace's `wasm-bindgen` crate, then run:
+
+```bash
+rustup target add wasm32-unknown-unknown
+cargo install wasm-bindgen-cli --version 0.2.128 --locked
+cargo build -p binaural-explorer-web -p binaural-audio-worklet \
+  --target wasm32-unknown-unknown --release
+wasm-bindgen \
+  --target web \
+  --out-dir frontend/pkg \
+  --out-name binaural_explorer_web \
+  target/wasm32-unknown-unknown/release/binaural_explorer_web.wasm
+wasm-bindgen \
+  --target no-modules \
+  --out-dir frontend/pkg \
+  --out-name binaural_audio_worklet_nomodule \
+  target/wasm32-unknown-unknown/release/binaural_audio_worklet.wasm
+```
+
+The generated JavaScript and WASM are checked in so `cargo run -p binaural-explorer-server` works without a separate frontend toolchain.
+
+Full validation:
+
+```bash
+cargo fmt --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo clippy -p binaural-explorer-web -p binaural-audio-worklet \
+  --target wasm32-unknown-unknown -- -D warnings
+cargo test --workspace
+node --experimental-default-type=module --test frontend/audio.test.mjs
+node --experimental-default-type=module --test frontend/audio-worklet.test.mjs
+```
+
+## Coordinate convention
+
+There is one canonical, right-handed convention throughout the project:
+
+```text
++X = right
++Y = up
++Z = front
+```
+
+Azimuth is `0°` at the front, `+90°` at the right, `-90°` at the left, and `±180°` at the back. Elevation is `0°` on the horizontal plane, `+90°` above, and `-90°` below.
+
+```text
+x = cos(elevation) * sin(azimuth)
+y = sin(elevation)
+z = cos(elevation) * cos(azimuth)
+```
+
+Angles at the public API are degrees; trigonometric calculations use radians. Dataset directions are normalized once during construction. The selected MIT data uses the same front/right/up angular convention. Its mirrored azimuths are converted to canonical unit vectors offline.
+
+## Graphics and sphere selection
+
+The canvas is rendered by Rust/WASM using wgpu 30 and WGSL; there is no Three.js or JavaScript scene graph. The scene contains:
+
+- a neutral human head basemesh with a full cranium, nose, ears, and neck;
+- a latitude/longitude source-sphere grid;
+- all 710 actual KEMAR measurement directions as neutral markers;
+- orange markers and guide lines for the active interpolation contributors;
+- red +X/right, green +Y/up, and blue +Z/front orientation arrows with a matching legend;
+- a bright blue selected-source sphere with an additive glow.
+
+The head is the male mesh from Pistachio's CC0 **2 Human Head Basemeshes** asset. Cargo preprocesses the source OBJ into centered, canonical `+Z`-facing triangles with smooth normals; the browser does not contain a general-purpose model loader. A neutral material and two-light WGSL shader reveal the facial shape without requiring textures. The model is visual only and never participates in acoustic processing. Source, license, checksum, and conversion details are recorded in [the head-model notes](docs/head-model.md).
+
+Pointer positions are converted from canvas coordinates to normalized device coordinates. Rust inverts the camera view-projection matrix to construct a 3D ray, intersects that ray with the radius-1.5 source sphere, and normalizes the hit relative to the origin. Camera orbiting therefore changes only the view, never the physical source coordinate system. Left-clicking or left-dragging selects the source at most once per animation frame, right-dragging orbits, and the wheel zooms within bounded limits. On touch screens, one finger selects and moves the source; two fingers orbit around their centroid and pinch to zoom. Once a two-finger gesture begins, its remaining finger cannot accidentally reposition the source. The canvas suppresses its context menu and native touch navigation so scene gestures remain uninterrupted.
+
+Front, back, left, right, and top buttons set canonical views without modifying the source direction. Reset returns to the initial front view and zoom distance. Camera preset and gesture mathematics remain in Rust; JavaScript only translates browser pointer events into coarse-grained WASM calls.
+
+wgpu prefers the browser WebGPU backend. Because some browsers and headless environments expose `navigator.gpu` without a usable adapter, the build also includes wgpu's WebGPU capability detection and WebGL2 backend fallback. Both paths use the same Rust renderer and WGSL scene; the active backend is shown in the UI status. WebGL2 is a compatibility path, not a replacement graphics architecture.
+
+## Interface
+
+The responsive vanilla HTML/CSS interface keeps the 3D view dominant and groups only the controls needed by the application: built-in/custom source selection, optional looping, file status, shared output volume, playback progress, azimuth/elevation, interpolation diagnostics, camera presets, scene-layer visibility, Play/Pause/Resume, and Stop. Looping is enabled by default so a source can be explored without repeatedly restarting a short clip. The always-visible timeline wraps against the source duration while looping, supports pointer and keyboard seeking, keeps a stable-width time label, resets without changing layout height on Stop, and uses the `AudioContext` clock rather than accumulating animation-frame deltas. Seeking recreates the one-shot Web Audio source at the requested offset while retaining the same browser-local mono buffer and real-time HRTF path; a seek performed while paused stays paused. Pause/resume uses the processing `AudioContext`, so the buffer source and Rust convolution state remain in place. A scene legend distinguishes measurements, contributors, and the selected source. Keyboard focus states and native labels are retained for basic accessibility.
+
+Display options independently hide the measurement cloud, sphere grid, coordinate axes, or interpolation guides. The orange guides connect the selected source directly to its three active contributor measurements. The selected source and active contributor markers remain visible for orientation. These flags live in the Rust renderer and only skip draw calls; changing them does not rebuild GPU resources or alter interpolation and audio state.
+
+On wide screens the interface follows a three-column scientific-workstation layout: audio and display controls on the left, the visualization in the center, and position/camera controls on the right. It collapses to one column on narrower screens. When that narrow layout requires page scrolling, an unmodified wheel scrolls the page over the canvas and `Ctrl`+wheel zooms the scene; when the page fits, the wheel zooms directly.
+
+The volume slider controls one Web Audio `GainNode` after stereo rendering. Its gain is applied equally to both output channels, so it does not alter interaural level differences. The default is a conservative `-6 dB`; the available range is `-30 dB` to `+12 dB`. Positive gain is deliberately permitted for quiet material, and the UI warns that it can clip.
+
+## Runtime HRTF representation
+
+`HrtfDataset` owns a sample rate and uniformly sized `HrirMeasurement` values. Each measurement contains a pre-normalized direction, derived canonical azimuth/elevation, and left/right `f32` impulse responses. Constructors reject zero/non-finite directions, zero sample rates, empty datasets, inconsistent HRIR lengths, and non-finite samples.
+
+No original dataset format leaks into lookup, interpolation, or convolution code.
+
+The runtime binary format uses explicit little-endian fields:
+
+```text
+magic[8] = "HRTFRT01"
+version: u32
+sample_rate: u32
+hrir_length: u32
+measurement_count: u32
+
+for each measurement:
+    direction_x, direction_y, direction_z: f32
+    left[hrir_length]: f32
+    right[hrir_length]: f32
+```
+
+The parser checks the magic, version, dimensions, exact byte length, finite samples, and valid non-zero direction vectors before constructing `HrtfDataset`.
+
+## Interpolation
+
+The MVP algorithm separates spatial selection from sample interpolation:
+
+1. Normalize the requested direction.
+2. Calculate clamped unit-vector angular distances, which naturally handle azimuth wrapping.
+3. Select the three nearest measurements.
+4. Normalize inverse-angular-distance weights.
+5. Apply the same weights sample-by-sample to both HRIR channels.
+
+An effectively exact match returns that measurement with weight 1, avoiding division by zero. The active contributor indices, angular distances, and weights are displayed in the debug panel; their directions are highlighted in orange in the 3D scene.
+
+Direct sample-wise HRIR interpolation is intentionally approximate: neighboring responses can have different impulse arrival times, so combining them can smear temporal and spectral structure. The `HrirInterpolator` boundary allows a later time-aligned or sphere-triangulated method without changing consumers.
+
+## Graphics-to-DSP integration
+
+Canvas selections are ray-cast in Rust and update the one canonical source direction owned by `BinauralApp`. That direction immediately drives the selected-source marker, contributor lookup, contributor diagnostics, and a coarse-grained interpolated HRIR snapshot. JavaScript does not select measurements or interpolate samples.
+
+During playback, each direction change sends one 128-sample stereo HRIR pair to the audio worklet. It never sends individual samples across the main-thread boundary. The worklet's dedicated Rust/WASM processor retains the mono input history and transitions to the target HRIR over 30 ms. Retargeting during an active transition first materializes its current effective filter, avoiding discontinuities during rapid dragging. Native integration tests use the packaged KEMAR data to verify that opposite left/right selections swap stereo HRIR channels and that substantially different directions produce different rendered signals.
+
+The HRTF core and compact dataset retain the canonical head-relative ear order. Because the rendered head faces the viewer, the browser applies one explicit left/right presentation swap to each HRIR before giving it to the device-order worklet. This makes the visible right side of the face-on scene play through the listener's right headphone without contaminating the dataset, interpolation, or native DSP conventions.
+
+## Convolution and levels
+
+`TimeDomainConvolver` implements complete direct `O(NM)` linear convolution for tests and offline use. `RealtimeBinauralConvolver` implements the same direct convolution over successive Web Audio render quanta using a persistent circular history buffer. The 128-tap HRIRs are short enough for this initial real-time method; FFT/partitioned convolution remains a future optimization.
+
+Offline binaural rendering can inspect a completed output and apply one shared peak gain. Real-time playback has no full-buffer lookahead and therefore does not peak-normalize in the worklet. One shared Web Audio `GainNode` follows the stereo worklet, preserving interaural level differences; positive user gain can clip, as the UI warns.
+
+## HRTF dataset status
+
+The bundled [MIT compact KEMAR dataset](docs/mit-kemar.md) contains 710 directions at 44.1 kHz and 128 samples per ear. It was measured by Bill Gardner and Keith Martin at the MIT Media Lab. The compact responses are stereo, retain interaural delay, and were equalized for the measurement loudspeaker.
+
+The official ZIP contains 368 16-bit PCM WAV files spanning azimuth 0°–180°. `hrtf-convert` validates these files, converts samples to `f32`, and reconstructs the other hemisphere by mirroring azimuth and swapping ear channels. Median-plane positions are not duplicated. The resulting asset is `frontend/assets/mit-kemar.bhrtf`.
+
+The data is Copyright 1994 MIT Media Laboratory, provided without usage restrictions with a request to cite its authors in research or commercial applications. Exact source URLs, archive/runtime checksums, format differences, processing history, and reproduction commands are recorded in [the dataset notes](docs/mit-kemar.md).
+
+## Sample-rate policy
+
+The canonical processing rate is the dataset's native 44,100 Hz. The browser explicitly requests a 44.1 kHz `AudioContext` and rejects a mismatched context rather than reinterpreting HRIR samples. Built-in signals are generated at 44.1 kHz in Rust. Web Audio may decode an uploaded file at another rate; `OfflineAudioContext` explicitly resamples the downmixed mono signal before playback. The browser handles final conversion from the processing context to the physical audio device.
+
+## Browser audio and privacy
+
+The current page generates complete mono test signals in Rust/WASM or accepts a browser-supported audio file through `<input type="file">`. `decodeAudioData` decodes the file, all decoded channels are averaged with one equal gain into mono, and `OfflineAudioContext` resamples that buffer when necessary. An `AudioBufferSourceNode` streams mono render quanta through the worklet. JavaScript writes each quantum into reusable WASM input/output views, makes one processing call, and copies the stereo result to Web Audio. Steady-state processing performs no Rust allocation and creates no result objects; there are no per-sample JS/WASM calls. If a browser changes its render-quantum length, the worklet resizes and reacquires those buffers once, then resumes the same allocation-free steady state.
+
+Axum serves the audio processor and `wasm-bindgen`'s `no-modules` glue as one self-contained worklet script. This avoids inconsistent imported-module registration in browser audio-rendering scopes. The server also prepends a tiny ASCII `TextDecoder` fallback for `wasm-bindgen`'s defensive error path because Chromium does not expose `TextDecoder` inside `AudioWorkletGlobalScope`; normal DSP does not use that fallback.
+
+Uploaded bytes and decoded samples remain in browser memory. They are never sent to Axum, persisted server-side, submitted to analytics, or sent to remote DSP. Files can be selected with the native picker or dropped onto the Audio Source panel. Codec support follows the browser's `decodeAudioData` implementation rather than claiming universal format support. File-size, decode, and duration errors are shown beside the file control without disabling the built-in signals.
+
+Custom clips are limited to 60 seconds after decoding and encoded files are limited to 50 MiB before decoding. These independent guards keep browser-memory use predictable while allowing substantially longer material than the original 10-second proof of concept.
+
+## Current limitations
+
+- The bundled HRTF is a non-individualized KEMAR measurement and may localize differently for each listener/headphone combination.
+- Custom audio is limited to 60 seconds, 50 MiB of encoded input, and browser-supported codecs.
+- The bundled head is a compact low-poly basemesh rather than a photorealistic scan.
+- The current server embeds the UI, generated WASM, and runtime dataset; general static-file serving is not needed yet.

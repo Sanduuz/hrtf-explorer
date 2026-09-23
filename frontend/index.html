@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Binaural HRTF Explorer</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <header>
+        <p class="eyebrow">Rust · WebAssembly · WebGPU</p>
+        <h1>Binaural HRTF Explorer</h1>
+        <p id="status" role="status">Loading Rust/WASM, WebGPU, and HRTF data…</p>
+      </header>
+
+      <div class="workspace">
+        <aside class="sidebar left-sidebar">
+          <section id="audio-source-panel" aria-labelledby="source-heading">
+            <h2 id="source-heading">Audio source</h2>
+            <label for="signal">Signal</label>
+            <select id="signal" disabled>
+              <option value="pink-noise">Pink noise</option>
+              <option value="click">Short impulse</option>
+              <option id="custom-signal" value="custom" disabled>Uploaded audio</option>
+            </select>
+            <label for="audio-file">Custom audio</label>
+            <input id="audio-file" type="file" accept="audio/*" disabled>
+            <p id="file-status" class="file-status">No file selected. Choose or drop browser-supported audio, up to 60 seconds.</p>
+            <p class="privacy-note">The file stays in browser memory and is never uploaded.</p>
+            <label for="volume">Volume <output id="volume-value">-6 dB</output></label>
+            <input id="volume" type="range" min="-30" max="12" step="1" value="-6" disabled>
+            <p id="volume-warning" class="gain-warning" hidden>Positive gain can clip the output.</p>
+            <label class="checkbox-label" for="loop">
+              <input id="loop" type="checkbox" checked disabled>
+              Loop while exploring
+            </label>
+            <div class="transport" aria-label="Playback">
+              <button id="play" type="button" disabled><span aria-hidden="true">▶</span> Play</button>
+              <button id="stop" type="button" disabled><span aria-hidden="true">■</span> Stop</button>
+            </div>
+            <div class="playback-meter">
+              <input id="playback-progress" type="range" min="0" max="10" step="0.01" value="0" aria-label="Playback position" disabled>
+              <output id="playback-time" aria-live="off">0:00 / 0:10</output>
+            </div>
+          </section>
+
+          <section aria-labelledby="display-heading">
+            <h2 id="display-heading">Display options</h2>
+            <label class="checkbox-label" for="show-measurements">
+              <input id="show-measurements" type="checkbox" data-display-layer="measurements" checked disabled>
+              Measurement points
+            </label>
+            <label class="checkbox-label" for="show-grid">
+              <input id="show-grid" type="checkbox" data-display-layer="grid" checked disabled>
+              Sphere grid
+            </label>
+            <label class="checkbox-label" for="show-axes">
+              <input id="show-axes" type="checkbox" data-display-layer="axes" checked disabled>
+              Coordinate axes
+            </label>
+            <label class="checkbox-label" for="show-guides" title="Orange lines connecting the source to its three HRIR contributors">
+              <input id="show-guides" type="checkbox" data-display-layer="contributor-guides" checked disabled>
+              Contributor guide lines
+            </label>
+          </section>
+        </aside>
+
+        <section class="scene-panel" aria-labelledby="scene-heading">
+          <div class="scene-heading">
+            <h2 id="scene-heading">Source sphere</h2>
+            <span class="interaction-help">
+              Mouse: left-drag source · right-drag orbit · scroll zoom<br>
+              Touch: one finger source · two fingers orbit/pinch
+            </span>
+          </div>
+          <canvas id="scene" aria-label="Interactive 3D head and source sphere"></canvas>
+          <div class="scene-legend" aria-label="Scene marker legend">
+            <span><i class="measurement-dot"></i>Measurement</span>
+            <span><i class="contributor-dot"></i>Contributor</span>
+            <span><i class="source-dot"></i>Selected source</span>
+            <span class="axis-key"><i class="axis-x"></i>+X right</span>
+            <span class="axis-key"><i class="axis-y"></i>+Y up</span>
+            <span class="axis-key"><i class="axis-z"></i>+Z front</span>
+          </div>
+        </section>
+
+        <aside class="sidebar right-sidebar">
+          <section aria-labelledby="position-heading">
+            <h2 id="position-heading">Source position</h2>
+            <label for="azimuth">Azimuth <output id="azimuth-value">+37.2°</output></label>
+            <input id="azimuth" type="range" min="-180" max="180" step="0.1" value="37.2" disabled>
+            <label for="elevation">Elevation <output id="elevation-value">+14.7°</output></label>
+            <input id="elevation" type="range" min="-90" max="90" step="0.1" value="14.7" disabled>
+            <pre id="debug">Direction and interpolation details will appear here.</pre>
+          </section>
+
+          <section aria-labelledby="view-heading">
+            <h2 id="view-heading">View presets</h2>
+            <div class="camera-presets">
+              <button type="button" data-camera-preset="front" disabled>Front</button>
+              <button type="button" data-camera-preset="back" disabled>Back</button>
+              <button type="button" data-camera-preset="left" disabled>Left</button>
+              <button type="button" data-camera-preset="right" disabled>Right</button>
+              <button type="button" data-camera-preset="top" disabled>Top</button>
+              <button type="button" data-camera-preset="reset" disabled>Reset</button>
+            </div>
+          </section>
+
+        </aside>
+      </div>
+
+      <footer>Use headphones for binaural playback. Audio processing stays in this browser.</footer>
+    </main>
+    <script type="module" src="/main.js"></script>
+  </body>
+</html>
