@@ -21,6 +21,7 @@ pub use glam::Vec3;
 pub use interpolation::{
     HrirInterpolator, InterpolatedHrir, InterpolationContributor, NearestNeighborInterpolator,
     NearestThreeInterpolator, SphericalTriangleInterpolator, TimeAlignedNearestThreeInterpolator,
+    TimeAlignedSphericalTriangleInterpolator,
 };
 
 use std::{error::Error, fmt};

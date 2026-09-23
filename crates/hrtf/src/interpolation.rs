@@ -167,39 +167,10 @@ impl HrirInterpolator for TimeAlignedNearestThreeInterpolator {
         dataset: &HrtfDataset,
         direction: Vec3,
     ) -> Result<InterpolatedHrir, HrtfError> {
-        let contributors = Self::contributors(dataset, direction)?;
-        if contributors.len() == 1 {
-            return Ok(interpolate_contributors(dataset, contributors));
-        }
-
-        let left_responses = contributors
-            .iter()
-            .map(|contributor| {
-                (
-                    dataset.measurements()[contributor.measurement_index]
-                        .left
-                        .as_slice(),
-                    contributor.weight,
-                )
-            })
-            .collect::<Vec<_>>();
-        let right_responses = contributors
-            .iter()
-            .map(|contributor| {
-                (
-                    dataset.measurements()[contributor.measurement_index]
-                        .right
-                        .as_slice(),
-                    contributor.weight,
-                )
-            })
-            .collect::<Vec<_>>();
-
-        Ok(InterpolatedHrir {
-            left: interpolate_time_aligned_channel(&left_responses, dataset.hrir_length()),
-            right: interpolate_time_aligned_channel(&right_responses, dataset.hrir_length()),
-            contributors,
-        })
+        Ok(interpolate_time_aligned(
+            dataset,
+            Self::contributors(dataset, direction)?,
+        ))
     }
 }
 
@@ -281,6 +252,43 @@ impl HrirInterpolator for SphericalTriangleInterpolator {
         direction: Vec3,
     ) -> Result<InterpolatedHrir, HrtfError> {
         Ok(interpolate_contributors(
+            dataset,
+            Self::contributors(dataset, direction)?,
+        ))
+    }
+}
+
+/// Spherical-triangle interpolation with independent left/right arrival-time alignment.
+///
+/// Spatial contributors and weights are identical to [`SphericalTriangleInterpolator`]. Each
+/// ear's responses are aligned before blending and its weighted delay is then restored, retaining
+/// the interpolated interaural time difference while reducing temporal smearing.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct TimeAlignedSphericalTriangleInterpolator;
+
+impl TimeAlignedSphericalTriangleInterpolator {
+    /// Uses the same containing triangle and spherical-area weights as
+    /// [`SphericalTriangleInterpolator`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an invalid direction or a dataset unsuitable for spherical-triangle
+    /// interpolation.
+    pub fn contributors(
+        dataset: &HrtfDataset,
+        direction: Vec3,
+    ) -> Result<Vec<InterpolationContributor>, HrtfError> {
+        SphericalTriangleInterpolator::contributors(dataset, direction)
+    }
+}
+
+impl HrirInterpolator for TimeAlignedSphericalTriangleInterpolator {
+    fn interpolate(
+        &self,
+        dataset: &HrtfDataset,
+        direction: Vec3,
+    ) -> Result<InterpolatedHrir, HrtfError> {
+        Ok(interpolate_time_aligned(
             dataset,
             Self::contributors(dataset, direction)?,
         ))
@@ -412,6 +420,44 @@ fn interpolate_contributors(
     InterpolatedHrir {
         left,
         right,
+        contributors,
+    }
+}
+
+fn interpolate_time_aligned(
+    dataset: &HrtfDataset,
+    contributors: Vec<InterpolationContributor>,
+) -> InterpolatedHrir {
+    if contributors.len() == 1 {
+        return interpolate_contributors(dataset, contributors);
+    }
+
+    let left_responses = contributors
+        .iter()
+        .map(|contributor| {
+            (
+                dataset.measurements()[contributor.measurement_index]
+                    .left
+                    .as_slice(),
+                contributor.weight,
+            )
+        })
+        .collect::<Vec<_>>();
+    let right_responses = contributors
+        .iter()
+        .map(|contributor| {
+            (
+                dataset.measurements()[contributor.measurement_index]
+                    .right
+                    .as_slice(),
+                contributor.weight,
+            )
+        })
+        .collect::<Vec<_>>();
+
+    InterpolatedHrir {
+        left: interpolate_time_aligned_channel(&left_responses, dataset.hrir_length()),
+        right: interpolate_time_aligned_channel(&right_responses, dataset.hrir_length()),
         contributors,
     }
 }
@@ -667,6 +713,66 @@ mod tests {
     fn spherical_triangle_preserves_an_exact_measurement() {
         let dataset = synthetic_dataset();
         let result = SphericalTriangleInterpolator
+            .interpolate(&dataset, Vec3::X)
+            .unwrap();
+
+        assert_eq!(result.left, dataset.measurements()[1].left);
+        assert_eq!(result.right, dataset.measurements()[1].right);
+        assert_eq!(result.contributors.len(), 1);
+    }
+
+    #[test]
+    fn time_aligned_spherical_triangle_reduces_impulse_smearing() {
+        fn impulse(index: usize) -> Vec<f32> {
+            let mut response = vec![0.0; 8];
+            response[index] = 1.0;
+            response
+        }
+
+        let dataset = HrtfDataset::new(
+            48_000,
+            [(Vec3::X, 1, 2), (Vec3::Y, 3, 4), (Vec3::Z, 5, 6)]
+                .into_iter()
+                .map(|(direction, left, right)| {
+                    HrirMeasurement::new(direction, impulse(left), impulse(right)).unwrap()
+                })
+                .collect(),
+        )
+        .unwrap();
+        let direction = Vec3::ONE.normalize();
+
+        let direct = SphericalTriangleInterpolator
+            .interpolate(&dataset, direction)
+            .unwrap();
+        let aligned = TimeAlignedSphericalTriangleInterpolator
+            .interpolate(&dataset, direction)
+            .unwrap();
+
+        assert_eq!(aligned.contributors, direct.contributors);
+        assert_eq!(
+            direct.left.iter().filter(|sample| **sample > 0.3).count(),
+            3
+        );
+        assert!(aligned.left[3] > 0.99);
+        assert!(aligned.right[4] > 0.99);
+        assert_eq!(
+            aligned.left.iter().filter(|sample| **sample > 0.01).count(),
+            1
+        );
+        assert_eq!(
+            aligned
+                .right
+                .iter()
+                .filter(|sample| **sample > 0.01)
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn time_aligned_spherical_triangle_preserves_an_exact_measurement() {
+        let dataset = synthetic_dataset();
+        let result = TimeAlignedSphericalTriangleInterpolator
             .interpolate(&dataset, Vec3::X)
             .unwrap();
 

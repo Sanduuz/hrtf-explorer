@@ -159,12 +159,13 @@ The parser checks the magic, version, dimensions, exact byte length, finite samp
 
 ## Interpolation
 
-The interpolation dropdown switches between four Rust implementations:
+The interpolation dropdown switches between five Rust implementations:
 
 - **Nearest neighbor** selects the closest measured direction and uses its HRIR unchanged. It is spatially discontinuous but does not blend impulse arrival times.
 - **3-point linear** is the default and directly combines corresponding HRIR samples.
 - **Time-aligned 3-point** uses the same neighbors and weights, estimates each ear's peak arrival with sub-sample parabolic refinement, aligns responses before mixing, and restores the weighted left/right delays independently. This reduces multi-peak smearing while retaining interpolated interaural delay. Exact measurement hits bypass shifting and remain bit-identical.
 - **Spherical triangle** finds a small measured triangle containing the requested direction and derives normalized weights from the three spherical sub-triangle areas. It respects the actual measurement layout instead of always choosing the three closest points. Candidate vertices combine nearby measurements with directionally distributed neighbors so the sparse lower cap remains covered without maintaining a global triangulation.
+- **Aligned spherical** uses the same containing triangle and spherical-area weights, then applies the per-ear arrival-time alignment used by the time-aligned 3-point method. This combines layout-aware spatial interpolation with reduced temporal smearing.
 
 The linear and time-aligned 3-point methods share the same spatial selection:
 
@@ -176,9 +177,9 @@ The linear and time-aligned 3-point methods share the same spatial selection:
 
 An effectively exact match returns that measurement with weight 1, avoiding division by zero. The active contributor indices, angular distances, and weights are displayed in the debug panel; their directions are highlighted in orange in the 3D scene. Changing methods immediately updates those visuals, the HRIR plot, and the live AudioWorklet target filter.
 
-The spherical-triangle method currently combines its three HRIRs directly sample-by-sample. It uses local containment and spherical-area coordinates, but deliberately avoids the extra machinery of a precomputed global spherical Delaunay mesh.
+Both spherical methods use local containment and spherical-area coordinates, but deliberately avoid the extra machinery of a precomputed global spherical Delaunay mesh. The direct variant combines corresponding HRIR samples; the aligned variant separates and restores the left/right delays around that combination.
 
-Direct sample-wise HRIR interpolation is intentionally approximate: neighboring responses can have different impulse arrival times, so combining them can smear temporal and spectral structure. Time alignment reduces that problem but uses peak arrival as a deliberately simple delay estimate. The `HrirInterpolator` boundary allows later time-aligned spherical-triangle, minimum-phase, frequency-domain, and spherical-harmonic methods without changing consumers.
+Direct sample-wise HRIR interpolation is intentionally approximate: neighboring responses can have different impulse arrival times, so combining them can smear temporal and spectral structure. Time alignment reduces that problem but uses peak arrival as a deliberately simple delay estimate. The `HrirInterpolator` boundary allows later minimum-phase, frequency-domain, and spherical-harmonic methods without changing consumers.
 
 ## Graphics-to-DSP integration
 
