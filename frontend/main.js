@@ -1,5 +1,6 @@
 import init, { BinauralApp } from "/pkg/binaural_explorer_web.js";
 import { BrowserAudio } from "/audio.js";
+import { renderHrirPlot } from "/hrir-plot.js";
 
 const elements = {
   status: document.querySelector("#status"),
@@ -18,6 +19,12 @@ const elements = {
   azimuthValue: document.querySelector("#azimuth-value"),
   elevationValue: document.querySelector("#elevation-value"),
   debug: document.querySelector("#debug"),
+  hrirPlot: {
+    leftPath: document.querySelector("#left-hrir-path"),
+    rightPath: document.querySelector("#right-hrir-path"),
+    length: document.querySelector("#hrir-length"),
+    duration: document.querySelector("#hrir-duration"),
+  },
   cameraPresets: [...document.querySelectorAll("[data-camera-preset]")],
   displayLayers: [...document.querySelectorAll("[data-display-layer]")],
   play: document.querySelector("#play"),
@@ -119,6 +126,7 @@ function syncCurrentHrir() {
   const left = hrir.left;
   const right = hrir.right;
   hrir.free();
+  renderHrirPlot(elements.hrirPlot, left, right, app.sample_rate());
   browserAudio.setHrir(left, right);
 }
 

@@ -248,7 +248,7 @@ impl BinauralApp {
 
     /// Applies a canonical camera view without changing the physical source direction.
     ///
-    /// Supported presets are `front`, `back`, `left`, `right`, `top`, and `reset`.
+    /// Supported presets are `front`, `back`, `left`, `right`, `top`, `bottom`, and `reset`.
     ///
     /// # Errors
     ///
@@ -261,6 +261,7 @@ impl BinauralApp {
             "left" => camera::CameraPreset::Left,
             "right" => camera::CameraPreset::Right,
             "top" => camera::CameraPreset::Top,
+            "bottom" => camera::CameraPreset::Bottom,
             "reset" => camera::CameraPreset::Reset,
             _ => return Err(JsError::new("unknown camera preset")),
         };

@@ -6,6 +6,7 @@ const INDEX_HTML: &str = include_str!("../../frontend/index.html");
 const STYLES_CSS: &str = include_str!("../../frontend/styles.css");
 const MAIN_JS: &str = include_str!("../../frontend/main.js");
 const AUDIO_JS: &str = include_str!("../../frontend/audio.js");
+const HRIR_PLOT_JS: &str = include_str!("../../frontend/hrir-plot.js");
 const AUDIO_WORKLET_PROCESSOR_JS: &str = include_str!("../../frontend/audio-worklet.js");
 const AUDIO_WORKLET_PRELUDE: &str = r#"
 if (typeof TextDecoder === "undefined") {
@@ -70,6 +71,18 @@ fn app() -> Router {
                         "text/javascript; charset=utf-8",
                     )],
                     AUDIO_JS,
+                )
+            }),
+        )
+        .route(
+            "/hrir-plot.js",
+            get(|| async {
+                (
+                    [(
+                        axum::http::header::CONTENT_TYPE,
+                        "text/javascript; charset=utf-8",
+                    )],
+                    HRIR_PLOT_JS,
                 )
             }),
         )
@@ -146,6 +159,8 @@ mod tests {
         assert!(INDEX_HTML.contains("id=\"playback-progress\""));
         assert!(INDEX_HTML.contains("up to 60 seconds"));
         assert!(INDEX_HTML.contains("data-camera-preset=\"front\""));
+        assert!(INDEX_HTML.contains("data-camera-preset=\"bottom\""));
+        assert!(INDEX_HTML.contains("id=\"hrir-plot\""));
         assert!(INDEX_HTML.contains("data-display-layer=\"measurements\""));
         assert!(INDEX_HTML.contains("left-sidebar"));
         assert!(INDEX_HTML.contains("right-sidebar"));
@@ -153,6 +168,7 @@ mod tests {
         assert!(INDEX_HTML.contains("two fingers orbit/pinch"));
         assert!(MAIN_JS.contains("navigate_camera"));
         assert!(MAIN_JS.contains("set_display_layer"));
+        assert!(MAIN_JS.contains("renderHrirPlot"));
         assert!(AUDIO_JS.contains("mapFrontFacingSceneToHeadphones"));
         assert!(AUDIO_JS.contains("MAX_VOLUME_DECIBELS = 12"));
         assert!(AUDIO_JS.contains("playSpatializedMono"));

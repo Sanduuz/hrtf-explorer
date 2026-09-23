@@ -260,7 +260,7 @@ export class BinauralApp {
     /**
      * Applies a canonical camera view without changing the physical source direction.
      *
-     * Supported presets are `front`, `back`, `left`, `right`, `top`, and `reset`.
+     * Supported presets are `front`, `back`, `left`, `right`, `top`, `bottom`, and `reset`.
      *
      * # Errors
      *

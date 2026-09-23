@@ -14,6 +14,7 @@ pub enum CameraPreset {
     Left,
     Right,
     Top,
+    Bottom,
     Reset,
 }
 
@@ -60,6 +61,7 @@ impl OrbitCamera {
             CameraPreset::Left => (-std::f32::consts::FRAC_PI_2, 0.0),
             CameraPreset::Right => (std::f32::consts::FRAC_PI_2, 0.0),
             CameraPreset::Top => (0.0, MAX_PITCH_RADIANS),
+            CameraPreset::Bottom => (0.0, -MAX_PITCH_RADIANS),
         };
         self.yaw_radians = yaw;
         self.pitch_radians = pitch;
@@ -247,6 +249,8 @@ mod tests {
         assert!(camera.eye().normalize().abs_diff_eq(Vec3::X, 1.0e-5));
         camera.set_preset(CameraPreset::Top);
         assert!(camera.eye().y > 0.99 * camera.eye().length());
+        camera.set_preset(CameraPreset::Bottom);
+        assert!(camera.eye().y < -0.99 * camera.eye().length());
 
         camera.zoom(500.0);
         camera.set_preset(CameraPreset::Front);

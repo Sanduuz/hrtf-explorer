@@ -178,6 +178,10 @@ canvas {
   padding: 0.9rem;
 }
 
+.right-sidebar section {
+  padding: 0.75rem;
+}
+
 .sidebar section + section {
   margin-top: 1rem;
 }
@@ -352,12 +356,100 @@ input:focus-visible {
 .camera-presets {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 0.5rem;
+  gap: 0.4rem;
 }
 
 .camera-presets button {
-  min-height: 2.25rem;
+  min-height: 2rem;
   margin: 0;
+}
+
+.camera-presets .reset-view {
+  grid-column: 1 / -1;
+}
+
+.reset-view span {
+  margin-right: 0.35rem;
+  font-size: 1rem;
+}
+
+.hrir-legend {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  color: #aab7c7;
+  font-size: 0.72rem;
+}
+
+.hrir-panel h2 {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+}
+
+.hrir-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.hrir-legend i {
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.15rem;
+  border-radius: 999px;
+}
+
+.hrir-legend output {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.left-hrir-key {
+  background: #52c7ff;
+}
+
+.right-hrir-key {
+  background: #ff9c52;
+}
+
+#hrir-plot {
+  display: block;
+  width: 100%;
+  height: 4.5rem;
+  margin-top: 0.65rem;
+  border: 1px solid #27364a;
+  border-radius: 0.35rem;
+  background: #090d13;
+}
+
+#hrir-plot path {
+  fill: none;
+  stroke-linejoin: round;
+  stroke-width: 1.35;
+  vector-effect: non-scaling-stroke;
+}
+
+.plot-zero {
+  stroke: #596779;
+  stroke-dasharray: 3 4;
+  stroke-width: 0.75;
+}
+
+.left-hrir-path {
+  stroke: #52c7ff;
+}
+
+.right-hrir-path {
+  stroke: #ff9c52;
+}
+
+.hrir-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.25rem;
+  color: #7f8da0;
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
 }
 
 pre {

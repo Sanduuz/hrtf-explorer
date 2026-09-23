@@ -95,6 +95,26 @@
             <pre id="debug">Direction and interpolation details will appear here.</pre>
           </section>
 
+          <section class="hrir-panel" aria-labelledby="hrir-heading">
+            <h2 id="hrir-heading">Impulse response (interpolated)</h2>
+            <div class="hrir-legend">
+              <span><i class="left-hrir-key"></i>Left</span>
+              <span><i class="right-hrir-key"></i>Right</span>
+              <output id="hrir-length">Waiting for data…</output>
+            </div>
+            <svg id="hrir-plot" viewBox="0 0 260 112" role="img" aria-labelledby="hrir-plot-title hrir-plot-description">
+              <title id="hrir-plot-title">Interpolated left and right head-related impulse responses</title>
+              <desc id="hrir-plot-description">Waveforms update when the selected source direction changes.</desc>
+              <line class="plot-zero" x1="0" y1="56" x2="260" y2="56"></line>
+              <path id="left-hrir-path" class="left-hrir-path" d=""></path>
+              <path id="right-hrir-path" class="right-hrir-path" d=""></path>
+            </svg>
+            <div class="hrir-axis" aria-hidden="true">
+              <span>0 ms</span>
+              <span id="hrir-duration">—</span>
+            </div>
+          </section>
+
           <section aria-labelledby="view-heading">
             <h2 id="view-heading">View presets</h2>
             <div class="camera-presets">
@@ -103,7 +123,8 @@
               <button type="button" data-camera-preset="left" disabled>Left</button>
               <button type="button" data-camera-preset="right" disabled>Right</button>
               <button type="button" data-camera-preset="top" disabled>Top</button>
-              <button type="button" data-camera-preset="reset" disabled>Reset</button>
+              <button type="button" data-camera-preset="bottom" disabled>Bottom</button>
+              <button class="reset-view" type="button" data-camera-preset="reset" disabled><span aria-hidden="true">↻</span> Reset</button>
             </div>
           </section>
 
