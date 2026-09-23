@@ -47,7 +47,6 @@ let fileLoadGeneration = 0;
 let playbackProgressFrame;
 let playbackDisplayDuration = 10;
 let activePlayback;
-let stableStatusText;
 
 const MAX_CUSTOM_DURATION_SECONDS = 60;
 const MAX_CUSTOM_FILE_BYTES = 50 * 1024 * 1024;
@@ -84,6 +83,7 @@ function showError(error) {
   console.error(error);
   elements.status.textContent = `Error: ${error instanceof Error ? error.message : String(error)}`;
   elements.status.classList.add("error");
+  elements.status.hidden = false;
   setEnabled(false);
 }
 
@@ -92,11 +92,13 @@ function showPlaybackError(error) {
   stopPlayback();
   elements.status.textContent = `Playback error: ${error instanceof Error ? error.message : String(error)}`;
   elements.status.classList.add("error");
+  elements.status.hidden = false;
 }
 
-function setStableStatus(message) {
-  stableStatusText = message;
-  elements.status.textContent = message;
+function clearStatus() {
+  elements.status.textContent = "";
+  elements.status.classList.remove("error");
+  elements.status.hidden = true;
 }
 
 function applySelection(selection, updateSliders = false) {
@@ -231,8 +233,7 @@ async function loadAudioFile(file) {
     elements.customSignal.disabled = false;
     elements.signal.value = "custom";
     elements.fileStatus.textContent = `${file.name} · ${channelCount} channel${channelCount === 1 ? "" : "s"} → mono · ${(samples.length / processingRate).toFixed(2)} s at ${processingRate} Hz`;
-    elements.status.classList.remove("error");
-    setStableStatus(`Custom audio ready: ${file.name}`);
+    clearStatus();
   } catch (error) {
     if (generation !== fileLoadGeneration) return;
     console.error(error);
@@ -240,7 +241,7 @@ async function loadAudioFile(file) {
       `Could not load ${file.name}. ${error instanceof Error ? error.message : "The browser may not support this codec."}`,
       true,
     );
-    setStableStatus("Custom audio failed to load; built-in signals remain available.");
+    clearStatus();
   } finally {
     if (generation === fileLoadGeneration) elements.play.disabled = false;
   }
@@ -270,8 +271,7 @@ async function play() {
   stopPlayback();
   elements.play.disabled = true;
   elements.play.setAttribute("aria-busy", "true");
-  elements.status.classList.remove("error");
-  if (stableStatusText) elements.status.textContent = stableStatusText;
+  clearStatus();
 
   try {
     let mono;
@@ -356,7 +356,7 @@ async function start() {
     updateDirection();
     updateVolume();
     setEnabled(true);
-    setStableStatus(`Ready · ${app.sample_rate()} Hz KEMAR · ${app.measurement_count()} positions · live Rust AudioWorklet · wgpu ${app.renderer_backend()} backend`);
+    clearStatus();
   } catch (error) {
     showError(error);
   }
@@ -367,8 +367,7 @@ elements.elevation.addEventListener("input", updateDirection);
 elements.play.addEventListener("click", () => togglePlayback().catch(showError));
 elements.stop.addEventListener("click", () => {
   stopPlayback();
-  elements.status.classList.remove("error");
-  if (stableStatusText) elements.status.textContent = stableStatusText;
+  clearStatus();
 });
 elements.playbackProgress.addEventListener("pointerdown", () => {
   if (playbackProgressFrame !== undefined) cancelAnimationFrame(playbackProgressFrame);

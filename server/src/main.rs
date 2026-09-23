@@ -165,7 +165,8 @@ mod tests {
         assert!(INDEX_HTML.contains("left-sidebar"));
         assert!(INDEX_HTML.contains("right-sidebar"));
         assert!(INDEX_HTML.contains("+X right"));
-        assert!(INDEX_HTML.contains("two fingers orbit/pinch"));
+        assert!(INDEX_HTML.contains("right-drag orbit"));
+        assert!(!INDEX_HTML.contains("two fingers orbit/pinch"));
         assert!(MAIN_JS.contains("navigate_camera"));
         assert!(MAIN_JS.contains("set_display_layer"));
         assert!(MAIN_JS.contains("renderHrirPlot"));
