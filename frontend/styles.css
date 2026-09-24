@@ -201,9 +201,9 @@ canvas {
 }
 
 .position-title {
-  display: flex;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
   gap: 0.5rem;
 }
 
@@ -218,10 +218,12 @@ canvas {
 }
 
 .position-title select {
-  width: 9.5rem;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   min-height: 1.9rem;
-  padding: 0 1.5rem 0 0.5rem;
-  font-size: 0.72rem;
+  padding: 0 1.1rem 0 0.4rem;
+  font-size: 0.68rem;
 }
 
 #audio-source-panel {
