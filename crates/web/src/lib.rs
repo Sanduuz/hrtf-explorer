@@ -2,9 +2,10 @@
 
 use hrtf::{
     HrirInterpolator, HrtfDataset, InterpolatedHrir, InterpolationContributor,
-    NearestNeighborInterpolator, NearestThreeInterpolator, SphericalTriangleInterpolator,
-    TimeAlignedNearestThreeInterpolator, TimeAlignedSphericalTriangleInterpolator, Vec3,
-    direction_to_spherical, render_binaural, spherical_to_direction,
+    MinimumPhaseInterpolator, NearestNeighborInterpolator, NearestThreeInterpolator,
+    SphericalTriangleInterpolator, TimeAlignedNearestThreeInterpolator,
+    TimeAlignedSphericalTriangleInterpolator, Vec3, direction_to_spherical, render_binaural,
+    spherical_to_direction,
 };
 use wasm_bindgen::prelude::*;
 
@@ -28,6 +29,7 @@ enum InterpolationMethod {
     TimeAlignedNearestThree,
     SphericalTriangle,
     TimeAlignedSphericalTriangle,
+    MinimumPhase,
 }
 
 impl InterpolationMethod {
@@ -48,6 +50,7 @@ impl InterpolationMethod {
             Self::TimeAlignedSphericalTriangle => {
                 TimeAlignedSphericalTriangleInterpolator::contributors(dataset, direction)
             }
+            Self::MinimumPhase => MinimumPhaseInterpolator::contributors(dataset, direction),
         }
     }
 
@@ -68,6 +71,7 @@ impl InterpolationMethod {
             Self::TimeAlignedSphericalTriangle => {
                 TimeAlignedSphericalTriangleInterpolator.interpolate(dataset, direction)
             }
+            Self::MinimumPhase => MinimumPhaseInterpolator.interpolate(dataset, direction),
         }
     }
 }
@@ -186,7 +190,7 @@ impl BinauralApp {
     /// Selects the HRIR interpolation strategy and refreshes its diagnostics.
     ///
     /// Supported methods are `nearest-neighbor`, `nearest-three`, `time-aligned-three`,
-    /// `spherical-triangle`, and `time-aligned-spherical-triangle`.
+    /// `spherical-triangle`, `time-aligned-spherical-triangle`, and `minimum-phase`.
     ///
     /// # Errors
     ///
@@ -199,6 +203,7 @@ impl BinauralApp {
             "time-aligned-three" => InterpolationMethod::TimeAlignedNearestThree,
             "spherical-triangle" => InterpolationMethod::SphericalTriangle,
             "time-aligned-spherical-triangle" => InterpolationMethod::TimeAlignedSphericalTriangle,
+            "minimum-phase" => InterpolationMethod::MinimumPhase,
             _ => return Err(JsError::new("unknown interpolation method")),
         };
         let (selection, contributors) = selection_state(self.dataset()?, self.direction, method)?;
@@ -743,6 +748,13 @@ mod tests {
             spherical.contributor_summary
         );
         assert_ne!(app.current_hrir().unwrap().left, spherical_hrir.left);
+
+        let minimum_phase = app.set_interpolation_method("minimum-phase").unwrap();
+        assert_eq!(
+            minimum_phase.contributor_summary,
+            blended.contributor_summary
+        );
+        assert_ne!(app.current_hrir().unwrap().left, blended_hrir.left);
 
         let bottom = app.set_direction(0.0, -90.0).unwrap();
         assert_eq!(bottom.contributor_summary.lines().count(), 3);

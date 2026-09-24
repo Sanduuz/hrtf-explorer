@@ -1,6 +1,13 @@
 use std::net::SocketAddr;
 
-use axum::{Router, response::Html, routing::get};
+use axum::{
+    Router,
+    extract::Request,
+    http::{HeaderValue, header::CACHE_CONTROL},
+    middleware::{self, Next},
+    response::{Html, Response},
+    routing::get,
+};
 
 const INDEX_HTML: &str = include_str!("../../frontend/index.html");
 const STYLES_CSS: &str = include_str!("../../frontend/styles.css");
@@ -39,6 +46,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn app() -> Router {
+    asset_routes().layer(middleware::from_fn(disable_static_asset_cache))
+}
+
+fn asset_routes() -> Router {
     Router::new()
         .route("/", get(|| async { Html(INDEX_HTML) }))
         .route(
@@ -141,6 +152,14 @@ fn app() -> Router {
         )
 }
 
+async fn disable_static_asset_cache(request: Request, next: Next) -> Response {
+    let mut response = next.run(request).await;
+    response
+        .headers_mut()
+        .insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    response
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -164,6 +183,7 @@ mod tests {
         assert!(INDEX_HTML.contains("id=\"interpolation-method\""));
         assert!(INDEX_HTML.contains("value=\"spherical-triangle\""));
         assert!(INDEX_HTML.contains("value=\"time-aligned-spherical-triangle\""));
+        assert!(INDEX_HTML.contains("value=\"minimum-phase\""));
         assert!(INDEX_HTML.contains("data-camera-preset=\"bottom\""));
         assert!(INDEX_HTML.contains("id=\"hrir-plot\""));
         assert!(INDEX_HTML.contains("data-display-layer=\"measurements\""));

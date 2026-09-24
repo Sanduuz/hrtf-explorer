@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 
 use glam::Vec3;
+use rustfft::{FftPlannerScalar, num_complex::Complex32};
 
 use crate::{HrtfDataset, HrtfError, angular_distance, coordinates::normalized};
 
@@ -295,6 +296,39 @@ impl HrirInterpolator for TimeAlignedSphericalTriangleInterpolator {
     }
 }
 
+/// Interpolates minimum-phase magnitude responses and restores per-ear arrival delay.
+///
+/// The magnitude spectra of the three nearest HRIRs are blended logarithmically. A real-cepstrum
+/// reconstruction produces one minimum-phase response per ear, after which the independently
+/// weighted left/right peak delays are restored. Exact measurement hits remain unchanged.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct MinimumPhaseInterpolator;
+
+impl MinimumPhaseInterpolator {
+    /// Uses the inverse-angular-distance contributors from [`NearestThreeInterpolator`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the direction is invalid or the dataset has fewer than three
+    /// measurements.
+    pub fn contributors(
+        dataset: &HrtfDataset,
+        direction: Vec3,
+    ) -> Result<Vec<InterpolationContributor>, HrtfError> {
+        NearestThreeInterpolator::contributors(dataset, direction)
+    }
+}
+
+impl HrirInterpolator for MinimumPhaseInterpolator {
+    fn interpolate(
+        &self,
+        dataset: &HrtfDataset,
+        direction: Vec3,
+    ) -> Result<InterpolatedHrir, HrtfError> {
+        interpolate_minimum_phase(dataset, Self::contributors(dataset, direction)?)
+    }
+}
+
 fn sorted_distances(
     dataset: &HrtfDataset,
     direction: Vec3,
@@ -460,6 +494,111 @@ fn interpolate_time_aligned(
         right: interpolate_time_aligned_channel(&right_responses, dataset.hrir_length()),
         contributors,
     }
+}
+
+fn interpolate_minimum_phase(
+    dataset: &HrtfDataset,
+    contributors: Vec<InterpolationContributor>,
+) -> Result<InterpolatedHrir, HrtfError> {
+    if contributors.len() == 1 {
+        return Ok(interpolate_contributors(dataset, contributors));
+    }
+
+    let left_responses = weighted_responses(dataset, &contributors, |measurement| {
+        measurement.left.as_slice()
+    });
+    let right_responses = weighted_responses(dataset, &contributors, |measurement| {
+        measurement.right.as_slice()
+    });
+
+    Ok(InterpolatedHrir {
+        left: interpolate_minimum_phase_channel(&left_responses, dataset.hrir_length())?,
+        right: interpolate_minimum_phase_channel(&right_responses, dataset.hrir_length())?,
+        contributors,
+    })
+}
+
+fn weighted_responses<'a>(
+    dataset: &'a HrtfDataset,
+    contributors: &[InterpolationContributor],
+    channel: impl Fn(&'a crate::HrirMeasurement) -> &'a [f32],
+) -> Vec<(&'a [f32], f32)> {
+    contributors
+        .iter()
+        .map(|contributor| {
+            (
+                channel(&dataset.measurements()[contributor.measurement_index]),
+                contributor.weight,
+            )
+        })
+        .collect()
+}
+
+fn interpolate_minimum_phase_channel(
+    responses: &[(&[f32], f32)],
+    output_length: usize,
+) -> Result<Vec<f32>, HrtfError> {
+    let fft_length = output_length
+        .checked_mul(2)
+        .and_then(usize::checked_next_power_of_two)
+        .ok_or(HrtfError::InvalidHrirLength)?;
+    // The fixed 256-point transform is inexpensive, and the scalar planner avoids browser-specific
+    // SIMD feature detection and its unsupported-instruction trap paths.
+    let mut planner = FftPlannerScalar::<f32>::new();
+    let forward = planner.plan_fft_forward(fft_length);
+    let inverse = planner.plan_fft_inverse(fft_length);
+    let mut weighted_log_magnitude = vec![0.0; fft_length];
+
+    for (response, weight) in responses {
+        let mut spectrum = vec![Complex32::ZERO; fft_length];
+        for (bin, sample) in spectrum.iter_mut().zip(*response) {
+            bin.re = *sample;
+        }
+        forward.process(&mut spectrum);
+        for (weighted, bin) in weighted_log_magnitude.iter_mut().zip(spectrum) {
+            *weighted += weight * bin.norm().max(1.0e-12).ln();
+        }
+    }
+
+    let mut cepstrum = weighted_log_magnitude
+        .into_iter()
+        .map(|value| Complex32::new(value, 0.0))
+        .collect::<Vec<_>>();
+    inverse.process(&mut cepstrum);
+    #[allow(clippy::cast_precision_loss)]
+    let fft_scale = fft_length as f32;
+    for coefficient in &mut cepstrum {
+        *coefficient /= fft_scale;
+    }
+    for coefficient in &mut cepstrum[1..fft_length / 2] {
+        *coefficient *= 2.0;
+    }
+    for coefficient in &mut cepstrum[fft_length / 2 + 1..] {
+        *coefficient = Complex32::ZERO;
+    }
+
+    forward.process(&mut cepstrum);
+    for bin in &mut cepstrum {
+        *bin = Complex32::from_polar(bin.re.exp(), bin.im);
+    }
+    inverse.process(&mut cepstrum);
+    let minimum_phase = cepstrum
+        .into_iter()
+        .take(output_length)
+        .map(|sample| sample.re / fft_scale)
+        .collect::<Vec<_>>();
+    let delay = responses
+        .iter()
+        .map(|(response, weight)| weight * peak_delay(response))
+        .sum::<f32>();
+    let mut source_position = -delay;
+    Ok((0..output_length)
+        .map(|_| {
+            let sample = linear_sample(&minimum_phase, source_position);
+            source_position += 1.0;
+            sample
+        })
+        .collect())
 }
 
 fn interpolate_time_aligned_channel(responses: &[(&[f32], f32)], output_length: usize) -> Vec<f32> {
@@ -773,6 +912,71 @@ mod tests {
     fn time_aligned_spherical_triangle_preserves_an_exact_measurement() {
         let dataset = synthetic_dataset();
         let result = TimeAlignedSphericalTriangleInterpolator
+            .interpolate(&dataset, Vec3::X)
+            .unwrap();
+
+        assert_eq!(result.left, dataset.measurements()[1].left);
+        assert_eq!(result.right, dataset.measurements()[1].right);
+        assert_eq!(result.contributors.len(), 1);
+    }
+
+    #[test]
+    fn minimum_phase_interpolation_restores_weighted_ear_delays() {
+        fn impulse(index: usize) -> Vec<f32> {
+            let mut response = vec![0.0; 8];
+            response[index] = 1.0;
+            response
+        }
+
+        let dataset = HrtfDataset::new(
+            48_000,
+            [(Vec3::X, 1, 2), (Vec3::Y, 3, 4), (Vec3::Z, 5, 6)]
+                .into_iter()
+                .map(|(direction, left, right)| {
+                    HrirMeasurement::new(direction, impulse(left), impulse(right)).unwrap()
+                })
+                .collect(),
+        )
+        .unwrap();
+
+        let result = MinimumPhaseInterpolator
+            .interpolate(&dataset, Vec3::ONE.normalize())
+            .unwrap();
+        let left_peak = result
+            .left
+            .iter()
+            .enumerate()
+            .max_by(|left, right| {
+                left.1
+                    .abs()
+                    .partial_cmp(&right.1.abs())
+                    .unwrap_or(Ordering::Equal)
+            })
+            .unwrap();
+        let right_peak = result
+            .right
+            .iter()
+            .enumerate()
+            .max_by(|left, right| {
+                left.1
+                    .abs()
+                    .partial_cmp(&right.1.abs())
+                    .unwrap_or(Ordering::Equal)
+            })
+            .unwrap();
+
+        assert_eq!(left_peak.0, 3);
+        assert_eq!(right_peak.0, 4);
+        assert!((*left_peak.1 - 1.0).abs() < 1.0e-5);
+        assert!((*right_peak.1 - 1.0).abs() < 1.0e-5);
+        assert!(result.left.iter().all(|sample| sample.is_finite()));
+        assert!(result.right.iter().all(|sample| sample.is_finite()));
+    }
+
+    #[test]
+    fn minimum_phase_interpolation_preserves_an_exact_measurement() {
+        let dataset = synthetic_dataset();
+        let result = MinimumPhaseInterpolator
             .interpolate(&dataset, Vec3::X)
             .unwrap();
 

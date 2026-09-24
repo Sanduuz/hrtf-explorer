@@ -269,8 +269,8 @@ export class BrowserAudio {
       throw new Error("This browser does not support AudioWorklet");
     }
     this.workletModulePromise ??= Promise.all([
-      context.audioWorklet.addModule("/audio-worklet.js"),
-      fetch("/pkg/binaural_audio_worklet_nomodule_bg.wasm").then(async (response) => {
+      context.audioWorklet.addModule("/audio-worklet.js?v=20260924-fft1"),
+      fetch("/pkg/binaural_audio_worklet_nomodule_bg.wasm?v=20260924-fft1").then(async (response) => {
         if (!response.ok) {
           throw new Error(`Audio DSP WASM request failed with HTTP ${response.status}`);
         }

@@ -158,7 +158,7 @@ export class BinauralApp {
      * Selects the HRIR interpolation strategy and refreshes its diagnostics.
      *
      * Supported methods are `nearest-neighbor`, `nearest-three`, `time-aligned-three`,
-     * `spherical-triangle`, and `time-aligned-spherical-triangle`.
+     * `spherical-triangle`, `time-aligned-spherical-triangle`, and `minimum-phase`.
      *
      * # Errors
      *
@@ -266,9 +266,9 @@ export interface InitOutput {
     readonly selectioninfo_z: (a: number) => number;
     readonly wasm_bindgen_196a8f8e05f9fa6c___convert__closures_____invoke___js_sys_762fa09176666909___Function_fn_wasm_bindgen_196a8f8e05f9fa6c___JsValue_____wasm_bindgen_196a8f8e05f9fa6c___sys__Undefined___js_sys_762fa09176666909___Function_fn_wasm_bindgen_196a8f8e05f9fa6c___JsValue_____wasm_bindgen_196a8f8e05f9fa6c___sys__Undefined_______true_: (a: number, b: number, c: any, d: any) => void;
     readonly wasm_bindgen_196a8f8e05f9fa6c___convert__closures_____invoke___wasm_bindgen_196a8f8e05f9fa6c___JsValue__core_f0fd674eaa06beef___result__Result_____wasm_bindgen_196a8f8e05f9fa6c___JsError___true_: (a: number, b: number, c: any) => [number, number];
-    readonly wasm_bindgen_196a8f8e05f9fa6c___convert__closures_____invoke___wasm_bindgen_196a8f8e05f9fa6c___sys__JsNullable_wgpu_4c61c97cbefedaa1___backend__webgpu__webgpu_sys__gen_GpuError__GpuError___core_f0fd674eaa06beef___result__Result_____wasm_bindgen_196a8f8e05f9fa6c___JsError___true_: (a: number, b: number, c: any) => [number, number];
-    readonly wasm_bindgen_196a8f8e05f9fa6c___convert__closures_____invoke___wasm_bindgen_196a8f8e05f9fa6c___sys__JsNullable_wgpu_4c61c97cbefedaa1___backend__webgpu__webgpu_sys__gen_GpuError__GpuError___core_f0fd674eaa06beef___result__Result_____wasm_bindgen_196a8f8e05f9fa6c___JsError___true__35: (a: number, b: number, c: any) => [number, number];
-    readonly wasm_bindgen_196a8f8e05f9fa6c___convert__closures_____invoke___wasm_bindgen_196a8f8e05f9fa6c___sys__JsNullable_wgpu_4c61c97cbefedaa1___backend__webgpu__webgpu_sys__gen_GpuError__GpuError___core_f0fd674eaa06beef___result__Result_____wasm_bindgen_196a8f8e05f9fa6c___JsError___true__36: (a: number, b: number, c: any) => [number, number];
+    readonly wasm_bindgen_196a8f8e05f9fa6c___convert__closures_____invoke___wasm_bindgen_196a8f8e05f9fa6c___sys__JsNullable_wgpu_63018cc362eee2b0___backend__webgpu__webgpu_sys__gen_GpuError__GpuError___core_f0fd674eaa06beef___result__Result_____wasm_bindgen_196a8f8e05f9fa6c___JsError___true_: (a: number, b: number, c: any) => [number, number];
+    readonly wasm_bindgen_196a8f8e05f9fa6c___convert__closures_____invoke___wasm_bindgen_196a8f8e05f9fa6c___sys__JsNullable_wgpu_63018cc362eee2b0___backend__webgpu__webgpu_sys__gen_GpuError__GpuError___core_f0fd674eaa06beef___result__Result_____wasm_bindgen_196a8f8e05f9fa6c___JsError___true__35: (a: number, b: number, c: any) => [number, number];
+    readonly wasm_bindgen_196a8f8e05f9fa6c___convert__closures_____invoke___wasm_bindgen_196a8f8e05f9fa6c___sys__JsNullable_wgpu_63018cc362eee2b0___backend__webgpu__webgpu_sys__gen_GpuError__GpuError___core_f0fd674eaa06beef___result__Result_____wasm_bindgen_196a8f8e05f9fa6c___JsError___true__36: (a: number, b: number, c: any) => [number, number];
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_exn_store: (a: number) => void;

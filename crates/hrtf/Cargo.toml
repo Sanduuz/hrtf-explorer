@@ -8,7 +8,7 @@ description = "Platform-independent spatial math and binaural DSP core"
 
 [dependencies]
 glam.workspace = true
+rustfft.workspace = true
 
 [lints]
 workspace = true
-
