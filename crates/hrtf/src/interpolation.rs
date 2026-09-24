@@ -329,6 +329,42 @@ impl HrirInterpolator for MinimumPhaseInterpolator {
     }
 }
 
+/// Interpolates HRIR magnitude and phase directly in the frequency domain.
+///
+/// Magnitudes are combined linearly and phases use a weighted circular mean, avoiding the
+/// discontinuity at ±π. This intentionally retains measured phase rather than separating delay as
+/// [`MinimumPhaseInterpolator`] does.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct FrequencyDomainInterpolator;
+
+impl FrequencyDomainInterpolator {
+    /// Uses the inverse-angular-distance contributors from [`NearestThreeInterpolator`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the direction is invalid or the dataset has fewer than three
+    /// measurements.
+    pub fn contributors(
+        dataset: &HrtfDataset,
+        direction: Vec3,
+    ) -> Result<Vec<InterpolationContributor>, HrtfError> {
+        NearestThreeInterpolator::contributors(dataset, direction)
+    }
+}
+
+impl HrirInterpolator for FrequencyDomainInterpolator {
+    fn interpolate(
+        &self,
+        dataset: &HrtfDataset,
+        direction: Vec3,
+    ) -> Result<InterpolatedHrir, HrtfError> {
+        Ok(interpolate_frequency_domain(
+            dataset,
+            Self::contributors(dataset, direction)?,
+        ))
+    }
+}
+
 fn sorted_distances(
     dataset: &HrtfDataset,
     direction: Vec3,
@@ -518,6 +554,28 @@ fn interpolate_minimum_phase(
     })
 }
 
+fn interpolate_frequency_domain(
+    dataset: &HrtfDataset,
+    contributors: Vec<InterpolationContributor>,
+) -> InterpolatedHrir {
+    if contributors.len() == 1 {
+        return interpolate_contributors(dataset, contributors);
+    }
+
+    let left_responses = weighted_responses(dataset, &contributors, |measurement| {
+        measurement.left.as_slice()
+    });
+    let right_responses = weighted_responses(dataset, &contributors, |measurement| {
+        measurement.right.as_slice()
+    });
+
+    InterpolatedHrir {
+        left: interpolate_frequency_domain_channel(&left_responses, dataset.hrir_length()),
+        right: interpolate_frequency_domain_channel(&right_responses, dataset.hrir_length()),
+        contributors,
+    }
+}
+
 fn weighted_responses<'a>(
     dataset: &'a HrtfDataset,
     contributors: &[InterpolationContributor],
@@ -599,6 +657,62 @@ fn interpolate_minimum_phase_channel(
             sample
         })
         .collect())
+}
+
+fn interpolate_frequency_domain_channel(
+    responses: &[(&[f32], f32)],
+    output_length: usize,
+) -> Vec<f32> {
+    let mut planner = FftPlannerScalar::<f32>::new();
+    let forward = planner.plan_fft_forward(output_length);
+    let inverse = planner.plan_fft_inverse(output_length);
+    let mut magnitudes = vec![0.0; output_length];
+    let mut phase_vectors = vec![Complex32::ZERO; output_length];
+    let mut complex_fallback = vec![Complex32::ZERO; output_length];
+
+    for (response, weight) in responses {
+        let mut spectrum = response
+            .iter()
+            .map(|sample| Complex32::new(*sample, 0.0))
+            .collect::<Vec<_>>();
+        forward.process(&mut spectrum);
+        for (((magnitude, phase_vector), fallback), bin) in magnitudes
+            .iter_mut()
+            .zip(&mut phase_vectors)
+            .zip(&mut complex_fallback)
+            .zip(spectrum)
+        {
+            let bin_magnitude = bin.norm();
+            *magnitude += weight * bin_magnitude;
+            *fallback += weight * bin;
+            if bin_magnitude > 1.0e-12 {
+                *phase_vector += weight * bin / bin_magnitude;
+            }
+        }
+    }
+
+    let mut spectrum = magnitudes
+        .into_iter()
+        .zip(phase_vectors)
+        .zip(complex_fallback)
+        .map(|((magnitude, phase_vector), fallback)| {
+            let phase = if phase_vector.norm_sqr() > 1.0e-12 {
+                phase_vector.arg()
+            } else if fallback.norm_sqr() > 1.0e-12 {
+                fallback.arg()
+            } else {
+                0.0
+            };
+            Complex32::from_polar(magnitude, phase)
+        })
+        .collect::<Vec<_>>();
+    inverse.process(&mut spectrum);
+    #[allow(clippy::cast_precision_loss)]
+    let scale = output_length as f32;
+    spectrum
+        .into_iter()
+        .map(|sample| sample.re / scale)
+        .collect()
 }
 
 fn interpolate_time_aligned_channel(responses: &[(&[f32], f32)], output_length: usize) -> Vec<f32> {
@@ -977,6 +1091,80 @@ mod tests {
     fn minimum_phase_interpolation_preserves_an_exact_measurement() {
         let dataset = synthetic_dataset();
         let result = MinimumPhaseInterpolator
+            .interpolate(&dataset, Vec3::X)
+            .unwrap();
+
+        assert_eq!(result.left, dataset.measurements()[1].left);
+        assert_eq!(result.right, dataset.measurements()[1].right);
+        assert_eq!(result.contributors.len(), 1);
+    }
+
+    #[test]
+    fn frequency_domain_interpolation_reconstructs_shared_hrirs() {
+        let left = vec![0.25, -0.5, 0.75, 0.125, 0.0, 0.0, 0.0, 0.0];
+        let right = vec![-0.125, 0.25, 0.5, -0.25, 0.0, 0.0, 0.0, 0.0];
+        let dataset = HrtfDataset::new(
+            48_000,
+            [Vec3::X, Vec3::Y, Vec3::Z]
+                .into_iter()
+                .map(|direction| {
+                    HrirMeasurement::new(direction, left.clone(), right.clone()).unwrap()
+                })
+                .collect(),
+        )
+        .unwrap();
+
+        let result = FrequencyDomainInterpolator
+            .interpolate(&dataset, Vec3::ONE.normalize())
+            .unwrap();
+
+        assert_eq!(result.contributors.len(), 3);
+        for (actual, expected) in result.left.iter().zip(left) {
+            assert!((actual - expected).abs() < 1.0e-5);
+        }
+        for (actual, expected) in result.right.iter().zip(right) {
+            assert!((actual - expected).abs() < 1.0e-5);
+        }
+    }
+
+    #[test]
+    fn frequency_domain_interpolation_handles_different_measured_phases() {
+        fn impulse(index: usize) -> Vec<f32> {
+            let mut response = vec![0.0; 8];
+            response[index] = 1.0;
+            response
+        }
+
+        let dataset = HrtfDataset::new(
+            48_000,
+            [(Vec3::X, 1, 2), (Vec3::Y, 3, 4), (Vec3::Z, 5, 6)]
+                .into_iter()
+                .map(|(direction, left, right)| {
+                    HrirMeasurement::new(direction, impulse(left), impulse(right)).unwrap()
+                })
+                .collect(),
+        )
+        .unwrap();
+        let direction = Vec3::ONE.normalize();
+        let direct = NearestThreeInterpolator
+            .interpolate(&dataset, direction)
+            .unwrap();
+        let frequency = FrequencyDomainInterpolator
+            .interpolate(&dataset, direction)
+            .unwrap();
+
+        assert_eq!(frequency.left.len(), dataset.hrir_length());
+        assert_eq!(frequency.right.len(), dataset.hrir_length());
+        assert!(frequency.left.iter().all(|sample| sample.is_finite()));
+        assert!(frequency.right.iter().all(|sample| sample.is_finite()));
+        assert_ne!(frequency.left, direct.left);
+        assert_ne!(frequency.right, direct.right);
+    }
+
+    #[test]
+    fn frequency_domain_interpolation_preserves_an_exact_measurement() {
+        let dataset = synthetic_dataset();
+        let result = FrequencyDomainInterpolator
             .interpolate(&dataset, Vec3::X)
             .unwrap();
 

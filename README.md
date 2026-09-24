@@ -159,7 +159,7 @@ The parser checks the magic, version, dimensions, exact byte length, finite samp
 
 ## Interpolation
 
-The interpolation dropdown switches between six Rust implementations:
+The interpolation dropdown switches between seven Rust implementations:
 
 - **Nearest neighbor** selects the closest measured direction and uses its HRIR unchanged. It is spatially discontinuous but does not blend impulse arrival times.
 - **3-point linear** is the default and directly combines corresponding HRIR samples.
@@ -167,6 +167,7 @@ The interpolation dropdown switches between six Rust implementations:
 - **Spherical triangle** finds a small measured triangle containing the requested direction and derives normalized weights from the three spherical sub-triangle areas. It respects the actual measurement layout instead of always choosing the three closest points. Candidate vertices combine nearby measurements with directionally distributed neighbors so the sparse lower cap remains covered without maintaining a global triangulation.
 - **Aligned spherical** uses the same containing triangle and spherical-area weights, then applies the per-ear arrival-time alignment used by the time-aligned 3-point method. This combines layout-aware spatial interpolation with reduced temporal smearing.
 - **Minimum phase** uses the three nearest inverse-distance contributors, interpolates their log-magnitude spectra, reconstructs a minimum-phase HRIR through the real cepstrum, and restores the weighted peak-arrival delay independently for each ear. This separates spectral shape from interaural delay instead of blending the original phase responses.
+- **Frequency domain** transforms the three nearest HRIRs, interpolates spectral magnitude linearly and phase with a circular mean, and reconstructs each ear through an inverse FFT. Circular phase interpolation handles the ±π boundary, but phase cancellation can still make this method less stable than minimum-phase interpolation.
 
 The linear and time-aligned 3-point methods share the same spatial selection:
 
@@ -180,7 +181,7 @@ An effectively exact match returns that measurement with weight 1, avoiding divi
 
 Both spherical methods use local containment and spherical-area coordinates, but deliberately avoid the extra machinery of a precomputed global spherical Delaunay mesh. The direct variant combines corresponding HRIR samples; the aligned variant separates and restores the left/right delays around that combination.
 
-Direct sample-wise HRIR interpolation is intentionally approximate: neighboring responses can have different impulse arrival times, so combining them can smear temporal and spectral structure. Time alignment reduces that problem but uses peak arrival as a deliberately simple delay estimate. Minimum-phase interpolation avoids blending measured phase, although its peak-based delay estimate remains intentionally simple. The `HrirInterpolator` boundary allows later frequency-domain and spherical-harmonic methods without changing consumers.
+Direct sample-wise HRIR interpolation is intentionally approximate: neighboring responses can have different impulse arrival times, so combining them can smear temporal and spectral structure. Time alignment reduces that problem but uses peak arrival as a deliberately simple delay estimate. Minimum-phase interpolation avoids blending measured phase, although its peak-based delay estimate remains intentionally simple. Frequency-domain interpolation retains measured phase but can encounter ambiguity when contributor phases oppose one another. The `HrirInterpolator` boundary allows a later spherical-harmonic method without changing consumers.
 
 ## Graphics-to-DSP integration
 

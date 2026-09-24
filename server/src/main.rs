@@ -184,6 +184,7 @@ mod tests {
         assert!(INDEX_HTML.contains("value=\"spherical-triangle\""));
         assert!(INDEX_HTML.contains("value=\"time-aligned-spherical-triangle\""));
         assert!(INDEX_HTML.contains("value=\"minimum-phase\""));
+        assert!(INDEX_HTML.contains("value=\"frequency-domain\""));
         assert!(INDEX_HTML.contains("data-camera-preset=\"bottom\""));
         assert!(INDEX_HTML.contains("id=\"hrir-plot\""));
         assert!(INDEX_HTML.contains("data-display-layer=\"measurements\""));

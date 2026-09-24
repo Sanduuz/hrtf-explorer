@@ -1,9 +1,9 @@
 //! Coarse-grained WASM bindings for the browser audio proof of concept.
 
 use hrtf::{
-    HrirInterpolator, HrtfDataset, InterpolatedHrir, InterpolationContributor,
-    MinimumPhaseInterpolator, NearestNeighborInterpolator, NearestThreeInterpolator,
-    SphericalTriangleInterpolator, TimeAlignedNearestThreeInterpolator,
+    FrequencyDomainInterpolator, HrirInterpolator, HrtfDataset, InterpolatedHrir,
+    InterpolationContributor, MinimumPhaseInterpolator, NearestNeighborInterpolator,
+    NearestThreeInterpolator, SphericalTriangleInterpolator, TimeAlignedNearestThreeInterpolator,
     TimeAlignedSphericalTriangleInterpolator, Vec3, direction_to_spherical, render_binaural,
     spherical_to_direction,
 };
@@ -30,6 +30,7 @@ enum InterpolationMethod {
     SphericalTriangle,
     TimeAlignedSphericalTriangle,
     MinimumPhase,
+    FrequencyDomain,
 }
 
 impl InterpolationMethod {
@@ -51,6 +52,7 @@ impl InterpolationMethod {
                 TimeAlignedSphericalTriangleInterpolator::contributors(dataset, direction)
             }
             Self::MinimumPhase => MinimumPhaseInterpolator::contributors(dataset, direction),
+            Self::FrequencyDomain => FrequencyDomainInterpolator::contributors(dataset, direction),
         }
     }
 
@@ -72,6 +74,7 @@ impl InterpolationMethod {
                 TimeAlignedSphericalTriangleInterpolator.interpolate(dataset, direction)
             }
             Self::MinimumPhase => MinimumPhaseInterpolator.interpolate(dataset, direction),
+            Self::FrequencyDomain => FrequencyDomainInterpolator.interpolate(dataset, direction),
         }
     }
 }
@@ -190,7 +193,8 @@ impl BinauralApp {
     /// Selects the HRIR interpolation strategy and refreshes its diagnostics.
     ///
     /// Supported methods are `nearest-neighbor`, `nearest-three`, `time-aligned-three`,
-    /// `spherical-triangle`, `time-aligned-spherical-triangle`, and `minimum-phase`.
+    /// `spherical-triangle`, `time-aligned-spherical-triangle`, `minimum-phase`, and
+    /// `frequency-domain`.
     ///
     /// # Errors
     ///
@@ -204,6 +208,7 @@ impl BinauralApp {
             "spherical-triangle" => InterpolationMethod::SphericalTriangle,
             "time-aligned-spherical-triangle" => InterpolationMethod::TimeAlignedSphericalTriangle,
             "minimum-phase" => InterpolationMethod::MinimumPhase,
+            "frequency-domain" => InterpolationMethod::FrequencyDomain,
             _ => return Err(JsError::new("unknown interpolation method")),
         };
         let (selection, contributors) = selection_state(self.dataset()?, self.direction, method)?;
@@ -752,6 +757,13 @@ mod tests {
         let minimum_phase = app.set_interpolation_method("minimum-phase").unwrap();
         assert_eq!(
             minimum_phase.contributor_summary,
+            blended.contributor_summary
+        );
+        assert_ne!(app.current_hrir().unwrap().left, blended_hrir.left);
+
+        let frequency_domain = app.set_interpolation_method("frequency-domain").unwrap();
+        assert_eq!(
+            frequency_domain.contributor_summary,
             blended.contributor_summary
         );
         assert_ne!(app.current_hrir().unwrap().left, blended_hrir.left);

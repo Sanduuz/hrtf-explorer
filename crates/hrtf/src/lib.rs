@@ -19,9 +19,10 @@ pub use coordinates::{
 pub use dataset::{HrirMeasurement, HrtfDataset};
 pub use glam::Vec3;
 pub use interpolation::{
-    HrirInterpolator, InterpolatedHrir, InterpolationContributor, MinimumPhaseInterpolator,
-    NearestNeighborInterpolator, NearestThreeInterpolator, SphericalTriangleInterpolator,
-    TimeAlignedNearestThreeInterpolator, TimeAlignedSphericalTriangleInterpolator,
+    FrequencyDomainInterpolator, HrirInterpolator, InterpolatedHrir, InterpolationContributor,
+    MinimumPhaseInterpolator, NearestNeighborInterpolator, NearestThreeInterpolator,
+    SphericalTriangleInterpolator, TimeAlignedNearestThreeInterpolator,
+    TimeAlignedSphericalTriangleInterpolator,
 };
 
 use std::{error::Error, fmt};
