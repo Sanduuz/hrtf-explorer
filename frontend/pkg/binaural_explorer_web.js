@@ -319,7 +319,7 @@ export class BinauralApp {
      *
      * Supported methods are `nearest-neighbor`, `nearest-three`, `time-aligned-three`,
      * `spherical-triangle`, `time-aligned-spherical-triangle`, `minimum-phase`, and
-     * `frequency-domain`.
+     * `frequency-domain`, and `spherical-harmonics`.
      *
      * # Errors
      *

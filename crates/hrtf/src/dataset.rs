@@ -1,6 +1,11 @@
+use std::sync::OnceLock;
+
 use glam::Vec3;
 
-use crate::{HrtfError, coordinates::direction_to_spherical, coordinates::normalized};
+use crate::{
+    HrtfError, coordinates::direction_to_spherical, coordinates::normalized,
+    interpolation::SphericalHarmonicModel,
+};
 
 /// One measured pair of left/right head-related impulse responses.
 #[derive(Debug, Clone, PartialEq)]
@@ -36,11 +41,12 @@ impl HrirMeasurement {
 }
 
 /// Runtime HRTF data independent of its original on-disk format.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug)]
 pub struct HrtfDataset {
     sample_rate: u32,
     hrir_length: usize,
     measurements: Vec<HrirMeasurement>,
+    spherical_harmonics: OnceLock<Result<SphericalHarmonicModel, HrtfError>>,
 }
 
 impl HrtfDataset {
@@ -70,6 +76,7 @@ impl HrtfDataset {
             sample_rate,
             hrir_length,
             measurements,
+            spherical_harmonics: OnceLock::new(),
         })
     }
 
@@ -86,6 +93,32 @@ impl HrtfDataset {
     #[must_use]
     pub fn measurements(&self) -> &[HrirMeasurement] {
         &self.measurements
+    }
+
+    pub(crate) fn spherical_harmonics(&self) -> Result<&SphericalHarmonicModel, HrtfError> {
+        self.spherical_harmonics
+            .get_or_init(|| SphericalHarmonicModel::fit(self))
+            .as_ref()
+            .map_err(Clone::clone)
+    }
+}
+
+impl Clone for HrtfDataset {
+    fn clone(&self) -> Self {
+        Self {
+            sample_rate: self.sample_rate,
+            hrir_length: self.hrir_length,
+            measurements: self.measurements.clone(),
+            spherical_harmonics: OnceLock::new(),
+        }
+    }
+}
+
+impl PartialEq for HrtfDataset {
+    fn eq(&self, other: &Self) -> bool {
+        self.sample_rate == other.sample_rate
+            && self.hrir_length == other.hrir_length
+            && self.measurements == other.measurements
     }
 }
 

@@ -10,6 +10,8 @@ const EXACT_MATCH_RADIANS: f32 = 1.0e-5;
 const TRIANGLE_NEAREST_CANDIDATES: usize = 16;
 const TRIANGLE_AZIMUTH_BINS: usize = 16;
 const TRIANGLE_EPSILON: f32 = 1.0e-6;
+const SPHERICAL_HARMONIC_COEFFICIENTS: usize = 16;
+const SPHERICAL_HARMONIC_RIDGE: f32 = 1.0e-4;
 
 /// A selected measurement and its normalized contribution.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -362,6 +364,198 @@ impl HrirInterpolator for FrequencyDomainInterpolator {
             dataset,
             Self::contributors(dataset, direction)?,
         ))
+    }
+}
+
+/// Third-order real spherical-harmonic interpolation fitted over the complete dataset.
+///
+/// The global coefficient model is built lazily once per [`HrtfDataset`] and reused for every
+/// direction. Evaluation therefore requires only 16 basis values per HRIR sample rather than a
+/// new least-squares solve during pointer movement.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct SphericalHarmonicInterpolator;
+
+impl SphericalHarmonicInterpolator {
+    /// Validates the direction and prepares the dataset's cached global model.
+    ///
+    /// A spherical-harmonic fit is global, so it does not expose a small set of local contributor
+    /// markers or weights.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an invalid direction, too few measurements, or a failed model fit.
+    pub fn contributors(
+        dataset: &HrtfDataset,
+        direction: Vec3,
+    ) -> Result<Vec<InterpolationContributor>, HrtfError> {
+        normalized(direction)?;
+        dataset.spherical_harmonics()?;
+        Ok(Vec::new())
+    }
+}
+
+impl HrirInterpolator for SphericalHarmonicInterpolator {
+    fn interpolate(
+        &self,
+        dataset: &HrtfDataset,
+        direction: Vec3,
+    ) -> Result<InterpolatedHrir, HrtfError> {
+        let direction = normalized(direction)?;
+        let (left, right) = dataset.spherical_harmonics()?.evaluate(direction);
+        Ok(InterpolatedHrir {
+            left,
+            right,
+            contributors: Vec::new(),
+        })
+    }
+}
+
+/// Cached coefficients for the fixed third-order real spherical-harmonic basis.
+#[derive(Debug, Clone)]
+pub(crate) struct SphericalHarmonicModel {
+    hrir_length: usize,
+    coefficients: Vec<f32>,
+}
+
+impl SphericalHarmonicModel {
+    #[allow(clippy::needless_range_loop)] // Indexed loops directly express the small matrix solve.
+    pub(crate) fn fit(dataset: &HrtfDataset) -> Result<Self, HrtfError> {
+        if dataset.measurements().len() < SPHERICAL_HARMONIC_COEFFICIENTS {
+            return Err(HrtfError::NotEnoughMeasurements {
+                available: dataset.measurements().len(),
+                required: SPHERICAL_HARMONIC_COEFFICIENTS,
+            });
+        }
+        let output_width = dataset
+            .hrir_length()
+            .checked_mul(2)
+            .ok_or(HrtfError::InvalidHrirLength)?;
+        let mut gram = [[0.0; SPHERICAL_HARMONIC_COEFFICIENTS]; SPHERICAL_HARMONIC_COEFFICIENTS];
+        let mut coefficients = vec![0.0; SPHERICAL_HARMONIC_COEFFICIENTS * output_width];
+
+        for measurement in dataset.measurements() {
+            let basis = real_spherical_harmonics(measurement.direction);
+            for row in 0..SPHERICAL_HARMONIC_COEFFICIENTS {
+                for column in 0..=row {
+                    gram[row][column] += basis[row] * basis[column];
+                }
+                let coefficient_row = row * output_width;
+                for (sample_index, sample) in measurement.left.iter().enumerate() {
+                    coefficients[coefficient_row + sample_index] += basis[row] * sample;
+                }
+                for (sample_index, sample) in measurement.right.iter().enumerate() {
+                    coefficients[coefficient_row + dataset.hrir_length() + sample_index] +=
+                        basis[row] * sample;
+                }
+            }
+        }
+        for row in 0..SPHERICAL_HARMONIC_COEFFICIENTS {
+            gram[row][row] += SPHERICAL_HARMONIC_RIDGE;
+            for column in row + 1..SPHERICAL_HARMONIC_COEFFICIENTS {
+                gram[row][column] = gram[column][row];
+            }
+        }
+
+        let lower = cholesky(&gram)?;
+        solve_cholesky(&lower, &mut coefficients, output_width);
+        if coefficients
+            .iter()
+            .any(|coefficient| !coefficient.is_finite())
+        {
+            return Err(HrtfError::SphericalHarmonicFitFailed);
+        }
+        Ok(Self {
+            hrir_length: dataset.hrir_length(),
+            coefficients,
+        })
+    }
+
+    fn evaluate(&self, direction: Vec3) -> (Vec<f32>, Vec<f32>) {
+        let basis = real_spherical_harmonics(direction);
+        let output_width = self.hrir_length * 2;
+        let mut left = vec![0.0; self.hrir_length];
+        let mut right = vec![0.0; self.hrir_length];
+        for (basis_index, basis_value) in basis.into_iter().enumerate() {
+            let row = basis_index * output_width;
+            for sample in 0..self.hrir_length {
+                left[sample] += basis_value * self.coefficients[row + sample];
+                right[sample] += basis_value * self.coefficients[row + self.hrir_length + sample];
+            }
+        }
+        (left, right)
+    }
+}
+
+#[allow(clippy::many_single_char_names)] // Cartesian names make the basis definition auditable.
+fn real_spherical_harmonics(direction: Vec3) -> [f32; SPHERICAL_HARMONIC_COEFFICIENTS] {
+    let Vec3 { x, y, z } = direction;
+    [
+        0.282_095,
+        0.488_603 * y,
+        0.488_603 * z,
+        0.488_603 * x,
+        1.092_548 * x * y,
+        1.092_548 * y * z,
+        0.315_392 * (3.0 * z * z - 1.0),
+        1.092_548 * x * z,
+        0.546_274 * (x * x - y * y),
+        0.590_044 * y * (3.0 * x * x - y * y),
+        2.890_611 * x * y * z,
+        0.457_046 * y * (5.0 * z * z - 1.0),
+        0.373_176 * z * (5.0 * z * z - 3.0),
+        0.457_046 * x * (5.0 * z * z - 1.0),
+        1.445_306 * z * (x * x - y * y),
+        0.590_044 * x * (x * x - 3.0 * y * y),
+    ]
+}
+
+#[allow(clippy::needless_range_loop)] // Indexed loops directly express Cholesky factorization.
+fn cholesky(
+    matrix: &[[f32; SPHERICAL_HARMONIC_COEFFICIENTS]; SPHERICAL_HARMONIC_COEFFICIENTS],
+) -> Result<[[f32; SPHERICAL_HARMONIC_COEFFICIENTS]; SPHERICAL_HARMONIC_COEFFICIENTS], HrtfError> {
+    let mut lower = [[0.0; SPHERICAL_HARMONIC_COEFFICIENTS]; SPHERICAL_HARMONIC_COEFFICIENTS];
+    for row in 0..SPHERICAL_HARMONIC_COEFFICIENTS {
+        for column in 0..=row {
+            let mut value = matrix[row][column];
+            for inner in 0..column {
+                value -= lower[row][inner] * lower[column][inner];
+            }
+            if row == column {
+                if !value.is_finite() || value <= f32::EPSILON {
+                    return Err(HrtfError::SphericalHarmonicFitFailed);
+                }
+                lower[row][column] = value.sqrt();
+            } else {
+                lower[row][column] = value / lower[column][column];
+            }
+        }
+    }
+    Ok(lower)
+}
+
+#[allow(clippy::needless_range_loop)] // Indexed loops solve all HRIR samples against one matrix.
+fn solve_cholesky(
+    lower: &[[f32; SPHERICAL_HARMONIC_COEFFICIENTS]; SPHERICAL_HARMONIC_COEFFICIENTS],
+    right_hand_sides: &mut [f32],
+    output_width: usize,
+) {
+    for row in 0..SPHERICAL_HARMONIC_COEFFICIENTS {
+        for output in 0..output_width {
+            let mut value = right_hand_sides[row * output_width + output];
+            for inner in 0..row {
+                value -= lower[row][inner] * right_hand_sides[inner * output_width + output];
+            }
+            right_hand_sides[row * output_width + output] = value / lower[row][row];
+        }
+    }
+    for row in (0..SPHERICAL_HARMONIC_COEFFICIENTS).rev() {
+        for output in 0..output_width {
+            let mut value = right_hand_sides[row * output_width + output];
+            for inner in row + 1..SPHERICAL_HARMONIC_COEFFICIENTS {
+                value -= lower[inner][row] * right_hand_sides[inner * output_width + output];
+            }
+            right_hand_sides[row * output_width + output] = value / lower[row][row];
+        }
     }
 }
 
@@ -1171,6 +1365,82 @@ mod tests {
         assert_eq!(result.left, dataset.measurements()[1].left);
         assert_eq!(result.right, dataset.measurements()[1].right);
         assert_eq!(result.contributors.len(), 1);
+    }
+
+    #[test]
+    #[allow(clippy::cast_precision_loss)] // The synthetic degree values are small exact integers.
+    fn spherical_harmonic_fit_reconstructs_low_order_directional_fields() {
+        let mut measurements = Vec::new();
+        for elevation in [-60.0, -30.0, 0.0, 30.0, 60.0] {
+            for azimuth in (0..360).step_by(30) {
+                let direction = spherical_to_direction(azimuth as f32, elevation);
+                let left = vec![
+                    0.3 + 0.2 * direction.x - 0.1 * direction.y + 0.05 * direction.z,
+                    -0.2 + 0.15 * direction.y,
+                ];
+                let right = vec![
+                    -0.1 + 0.25 * direction.z,
+                    0.4 - 0.1 * direction.x + 0.2 * direction.y,
+                ];
+                measurements.push(HrirMeasurement::new(direction, left, right).unwrap());
+            }
+        }
+        let dataset = HrtfDataset::new(48_000, measurements).unwrap();
+        let target = spherical_to_direction(43.0, 17.0);
+        let result = SphericalHarmonicInterpolator
+            .interpolate(&dataset, target)
+            .unwrap();
+        let expected_left = [
+            0.3 + 0.2 * target.x - 0.1 * target.y + 0.05 * target.z,
+            -0.2 + 0.15 * target.y,
+        ];
+        let expected_right = [
+            -0.1 + 0.25 * target.z,
+            0.4 - 0.1 * target.x + 0.2 * target.y,
+        ];
+
+        assert!(result.contributors.is_empty());
+        for (actual, expected) in result.left.iter().zip(expected_left) {
+            assert!((actual - expected).abs() < 1.0e-4);
+        }
+        for (actual, expected) in result.right.iter().zip(expected_right) {
+            assert!((actual - expected).abs() < 1.0e-4);
+        }
+    }
+
+    #[test]
+    #[allow(clippy::cast_precision_loss)] // The synthetic degree values are small exact integers.
+    fn spherical_harmonic_model_is_cached_per_dataset() {
+        let measurements = (0..SPHERICAL_HARMONIC_COEFFICIENTS)
+            .map(|index| {
+                let azimuth = index as f32 * 137.5;
+                let elevation = -70.0 + index as f32 * 140.0 / 15.0;
+                HrirMeasurement::new(
+                    spherical_to_direction(azimuth, elevation),
+                    vec![index as f32],
+                    vec![-(index as f32)],
+                )
+                .unwrap()
+            })
+            .collect();
+        let dataset = HrtfDataset::new(48_000, measurements).unwrap();
+
+        let first = std::ptr::from_ref(dataset.spherical_harmonics().unwrap());
+        let second = std::ptr::from_ref(dataset.spherical_harmonics().unwrap());
+
+        assert_eq!(first, second);
+    }
+
+    #[test]
+    fn spherical_harmonic_fit_requires_enough_measurements() {
+        let dataset = synthetic_dataset();
+        assert_eq!(
+            SphericalHarmonicInterpolator.interpolate(&dataset, Vec3::Z),
+            Err(HrtfError::NotEnoughMeasurements {
+                available: 4,
+                required: SPHERICAL_HARMONIC_COEFFICIENTS,
+            })
+        );
     }
 
     #[test]

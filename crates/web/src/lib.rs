@@ -3,9 +3,9 @@
 use hrtf::{
     FrequencyDomainInterpolator, HrirInterpolator, HrtfDataset, InterpolatedHrir,
     InterpolationContributor, MinimumPhaseInterpolator, NearestNeighborInterpolator,
-    NearestThreeInterpolator, SphericalTriangleInterpolator, TimeAlignedNearestThreeInterpolator,
-    TimeAlignedSphericalTriangleInterpolator, Vec3, direction_to_spherical, render_binaural,
-    spherical_to_direction,
+    NearestThreeInterpolator, SphericalHarmonicInterpolator, SphericalTriangleInterpolator,
+    TimeAlignedNearestThreeInterpolator, TimeAlignedSphericalTriangleInterpolator, Vec3,
+    direction_to_spherical, render_binaural, spherical_to_direction,
 };
 use wasm_bindgen::prelude::*;
 
@@ -31,6 +31,7 @@ enum InterpolationMethod {
     TimeAlignedSphericalTriangle,
     MinimumPhase,
     FrequencyDomain,
+    SphericalHarmonics,
 }
 
 impl InterpolationMethod {
@@ -53,6 +54,9 @@ impl InterpolationMethod {
             }
             Self::MinimumPhase => MinimumPhaseInterpolator::contributors(dataset, direction),
             Self::FrequencyDomain => FrequencyDomainInterpolator::contributors(dataset, direction),
+            Self::SphericalHarmonics => {
+                SphericalHarmonicInterpolator::contributors(dataset, direction)
+            }
         }
     }
 
@@ -75,6 +79,9 @@ impl InterpolationMethod {
             }
             Self::MinimumPhase => MinimumPhaseInterpolator.interpolate(dataset, direction),
             Self::FrequencyDomain => FrequencyDomainInterpolator.interpolate(dataset, direction),
+            Self::SphericalHarmonics => {
+                SphericalHarmonicInterpolator.interpolate(dataset, direction)
+            }
         }
     }
 }
@@ -194,7 +201,7 @@ impl BinauralApp {
     ///
     /// Supported methods are `nearest-neighbor`, `nearest-three`, `time-aligned-three`,
     /// `spherical-triangle`, `time-aligned-spherical-triangle`, `minimum-phase`, and
-    /// `frequency-domain`.
+    /// `frequency-domain`, and `spherical-harmonics`.
     ///
     /// # Errors
     ///
@@ -209,6 +216,7 @@ impl BinauralApp {
             "time-aligned-spherical-triangle" => InterpolationMethod::TimeAlignedSphericalTriangle,
             "minimum-phase" => InterpolationMethod::MinimumPhase,
             "frequency-domain" => InterpolationMethod::FrequencyDomain,
+            "spherical-harmonics" => InterpolationMethod::SphericalHarmonics,
             _ => return Err(JsError::new("unknown interpolation method")),
         };
         let (selection, contributors) = selection_state(self.dataset()?, self.direction, method)?;
@@ -520,6 +528,9 @@ fn selection_state(
 }
 
 fn contributor_summary(contributors: &[InterpolationContributor]) -> String {
+    if contributors.is_empty() {
+        return "Global order-3 spherical-harmonic fit".to_owned();
+    }
     contributors
         .iter()
         .map(|contributor| {
@@ -768,8 +779,25 @@ mod tests {
         );
         assert_ne!(app.current_hrir().unwrap().left, blended_hrir.left);
 
+        let spherical_harmonics = app.set_interpolation_method("spherical-harmonics").unwrap();
+        assert_eq!(
+            spherical_harmonics.contributor_summary,
+            "Global order-3 spherical-harmonic fit"
+        );
+        let spherical_harmonic_hrir = app.current_hrir().unwrap();
+        assert_ne!(spherical_harmonic_hrir.left, blended_hrir.left);
+        assert!(
+            spherical_harmonic_hrir
+                .left
+                .iter()
+                .all(|sample| sample.is_finite())
+        );
+
         let bottom = app.set_direction(0.0, -90.0).unwrap();
-        assert_eq!(bottom.contributor_summary.lines().count(), 3);
+        assert_eq!(
+            bottom.contributor_summary,
+            "Global order-3 spherical-harmonic fit"
+        );
         assert!(app.current_hrir().is_ok());
     }
 

@@ -21,8 +21,8 @@ pub use glam::Vec3;
 pub use interpolation::{
     FrequencyDomainInterpolator, HrirInterpolator, InterpolatedHrir, InterpolationContributor,
     MinimumPhaseInterpolator, NearestNeighborInterpolator, NearestThreeInterpolator,
-    SphericalTriangleInterpolator, TimeAlignedNearestThreeInterpolator,
-    TimeAlignedSphericalTriangleInterpolator,
+    SphericalHarmonicInterpolator, SphericalTriangleInterpolator,
+    TimeAlignedNearestThreeInterpolator, TimeAlignedSphericalTriangleInterpolator,
 };
 
 use std::{error::Error, fmt};
@@ -39,6 +39,7 @@ pub enum HrtfError {
     InvalidDatasetBytes(&'static str),
     NotEnoughMeasurements { available: usize, required: usize },
     NoContainingTriangle,
+    SphericalHarmonicFitFailed,
     NonFiniteSample,
 }
 
@@ -73,6 +74,9 @@ impl fmt::Display for HrtfError {
                     formatter,
                     "no containing spherical measurement triangle was found"
                 )
+            }
+            Self::SphericalHarmonicFitFailed => {
+                write!(formatter, "spherical-harmonic model fitting failed")
             }
             Self::NonFiniteSample => write!(formatter, "audio and HRIR samples must be finite"),
         }
