@@ -7,6 +7,7 @@ import {
   decibelsToGain,
   mapHeadRelativeHrirToHeadphones,
   validateAudioFile,
+  validateMediaDuration,
   validatePlaybackOffset,
 } from "./audio.js";
 
@@ -41,14 +42,36 @@ test("real-time HRIR updates retain head-relative device order", () => {
   assert.strictEqual(audio.deviceHrir.right, headRight);
 });
 
-test("custom audio files are bounded before browser decoding", () => {
+test("streamed custom audio files are bounded without reading their bytes", () => {
   const file = (size) => ({ size, arrayBuffer: async () => new ArrayBuffer(size) });
 
   assert.doesNotThrow(() => validateAudioFile(file(1024), 2048));
+  assert.doesNotThrow(() => validateAudioFile(file(1536 * 1024 * 1024), 2 * 1024 * 1024 * 1024));
   assert.throws(() => validateAudioFile(file(0), 2048), /empty/);
   assert.throws(() => validateAudioFile(file(4096), 2048), /current limit/);
   assert.throws(() => validateAudioFile({}, 2048), /valid local audio file/);
   assert.throws(() => validateAudioFile(file(1024), 0), /positive integer/);
+});
+
+test("streaming metadata requires a finite positive duration", () => {
+  assert.doesNotThrow(() => validateMediaDuration(30 * 60));
+  assert.throws(() => validateMediaDuration(0), /valid audio duration/);
+  assert.throws(() => validateMediaDuration(Number.POSITIVE_INFINITY), /valid audio duration/);
+});
+
+test("streaming playback progress follows media currentTime", () => {
+  const audio = new BrowserAudio();
+  audio.playingMedia = { currentTime: 123.5 };
+  audio.playbackDuration = 1800;
+  audio.playbackLoops = false;
+  audio.playbackPaused = true;
+
+  assert.deepEqual(audio.playbackState(), {
+    position: 123.5,
+    duration: 1800,
+    loop: false,
+    paused: true,
+  });
 });
 
 test("playback position clamps or wraps using the Web Audio clock", () => {

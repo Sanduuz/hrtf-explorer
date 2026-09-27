@@ -1,6 +1,6 @@
-import init, { BinauralApp } from "/pkg/binaural_explorer_web.js?v=20260927-headspace1";
-import { BrowserAudio } from "/audio.js?v=20260927-headspace1";
-import { renderHrirPlot } from "/hrir-plot.js?v=20260927-headspace1";
+import init, { BinauralApp } from "/pkg/binaural_explorer_web.js?v=20260927-stream1";
+import { BrowserAudio } from "/audio.js?v=20260927-stream1";
+import { renderHrirPlot } from "/hrir-plot.js?v=20260927-stream1";
 
 const elements = {
   status: document.querySelector("#status"),
@@ -56,7 +56,7 @@ let touchGesture;
 let touchGestureWasMulti = false;
 let pendingSourcePointer;
 let sourceFramePending = false;
-let uploadedMono;
+let uploadedMedia;
 let fileLoadGeneration = 0;
 let playbackProgressFrame;
 let playbackDisplayDuration = 10;
@@ -65,8 +65,7 @@ let rendererResizeFrame;
 let lastRendererPhysicalWidth = 0;
 let lastRendererPhysicalHeight = 0;
 
-const MAX_CUSTOM_DURATION_SECONDS = 60;
-const MAX_CUSTOM_FILE_BYTES = 50 * 1024 * 1024;
+const MAX_CUSTOM_FILE_BYTES = 2 * 1024 * 1024 * 1024;
 
 function setEnabled(enabled) {
   for (const element of [
@@ -260,7 +259,8 @@ function stopPlaybackProgress() {
 }
 
 function clearUploadedAudio(message, isError = false) {
-  uploadedMono = undefined;
+  if (uploadedMedia) browserAudio.releaseMediaAsset(uploadedMedia);
+  uploadedMedia = undefined;
   elements.customSignal.disabled = true;
   if (elements.signal.value === "custom") elements.signal.value = "pink-noise";
   elements.fileStatus.textContent = message;
@@ -270,24 +270,24 @@ function clearUploadedAudio(message, isError = false) {
 async function loadAudioFile(file) {
   const generation = ++fileLoadGeneration;
   stopPlayback();
+  if (uploadedMedia) browserAudio.releaseMediaAsset(uploadedMedia);
+  uploadedMedia = undefined;
+  elements.customSignal.disabled = true;
   elements.play.disabled = true;
   elements.fileStatus.classList.remove("file-error");
-  elements.fileStatus.textContent = `Decoding ${file.name}…`;
+  elements.fileStatus.textContent = `Reading ${file.name}…`;
 
   try {
-    const processingRate = app.sample_rate();
-    const { samples, channelCount } = await browserAudio.decodeFile(
-      file,
-      processingRate,
-      MAX_CUSTOM_DURATION_SECONDS,
-      MAX_CUSTOM_FILE_BYTES,
-    );
-    if (generation !== fileLoadGeneration) return;
+    const asset = await browserAudio.createMediaAsset(file, MAX_CUSTOM_FILE_BYTES);
+    if (generation !== fileLoadGeneration) {
+      browserAudio.releaseMediaAsset(asset);
+      return;
+    }
 
-    uploadedMono = samples;
+    uploadedMedia = asset;
     elements.customSignal.disabled = false;
     elements.signal.value = "custom";
-    elements.fileStatus.textContent = `${file.name} · ${channelCount} channel${channelCount === 1 ? "" : "s"} → mono · ${(samples.length / processingRate).toFixed(2)} s at ${processingRate} Hz`;
+    elements.fileStatus.textContent = `${file.name} · ${formatPlaybackTime(asset.duration)} · streaming locally`;
     clearStatus();
   } catch (error) {
     if (generation !== fileLoadGeneration) return;
@@ -303,20 +303,31 @@ async function loadAudioFile(file) {
 }
 
 async function startSpatialPlayback(playback, startOffsetSeconds = 0) {
-  await browserAudio.playSpatializedMono(
-    playback.mono,
-    playback.sampleRate,
-    playback.loop,
-    () => {
-      if (activePlayback !== playback) return;
-      finishPlaybackProgress(playback.duration);
-      activePlayback = undefined;
-      elements.stop.disabled = true;
-      setPlayButton("play");
-    },
-    showPlaybackError,
-    startOffsetSeconds,
-  );
+  const onEnded = () => {
+    if (activePlayback !== playback) return;
+    finishPlaybackProgress(playback.duration);
+    activePlayback = undefined;
+    elements.stop.disabled = true;
+    setPlayButton("play");
+  };
+  if (playback.kind === "media") {
+    await browserAudio.playSpatializedMedia(
+      playback.asset,
+      playback.loop,
+      onEnded,
+      showPlaybackError,
+      startOffsetSeconds,
+    );
+  } else {
+    await browserAudio.playSpatializedMono(
+      playback.mono,
+      playback.sampleRate,
+      playback.loop,
+      onEnded,
+      showPlaybackError,
+      startOffsetSeconds,
+    );
+  }
   startPlaybackProgress();
   elements.stop.disabled = false;
   setPlayButton("pause");
@@ -329,22 +340,35 @@ async function play() {
   clearStatus();
 
   try {
-    let mono;
     if (elements.signal.value === "custom") {
-      if (!uploadedMono) throw new Error("Choose and decode a custom audio file first");
-      mono = uploadedMono;
+      if (!uploadedMedia) throw new Error("Choose a local audio file first");
+      activePlayback = {
+        kind: "media",
+        asset: uploadedMedia,
+        duration: uploadedMedia.duration,
+        loop: elements.loop.checked,
+      };
     } else {
       const duration = elements.signal.value === "click" ? 0.5 : 10.0;
-      mono = app.generate_test_signal(elements.signal.value, duration);
+      const mono = app.generate_test_signal(elements.signal.value, duration);
+      const sampleRate = app.sample_rate();
+      activePlayback = {
+        kind: "buffer",
+        mono,
+        sampleRate,
+        duration: mono.length / sampleRate,
+        loop: elements.loop.checked,
+      };
     }
-    const sampleRate = app.sample_rate();
-    activePlayback = {
-      mono,
-      sampleRate,
-      duration: mono.length / sampleRate,
-      loop: elements.loop.checked,
-    };
-    await startSpatialPlayback(activePlayback);
+    const playback = activePlayback;
+    try {
+      await startSpatialPlayback(playback);
+    } catch (error) {
+      if (activePlayback === playback) activePlayback = undefined;
+      browserAudio.stop();
+      stopPlaybackProgress();
+      throw error;
+    }
   } finally {
     elements.play.disabled = false;
     elements.play.removeAttribute("aria-busy");
@@ -355,7 +379,8 @@ async function seekPlayback(requestedOffset) {
   const playback = activePlayback;
   if (!playback) return;
   const remainPaused = browserAudio.isPlaybackPaused();
-  const lastSampleOffset = Math.max(0, playback.duration - 1 / playback.sampleRate);
+  const finalOffsetMargin = playback.kind === "media" ? 0.001 : 1 / playback.sampleRate;
+  const lastSampleOffset = Math.max(0, playback.duration - finalOffsetMargin);
   const offset = Math.min(Math.max(0, requestedOffset), lastSampleOffset);
   await startSpatialPlayback(playback, offset);
   if (remainPaused) await pausePlayback();
@@ -390,7 +415,7 @@ async function togglePlayback() {
 
 async function start() {
   try {
-    await init({ module_or_path: "/pkg/binaural_explorer_web_bg.wasm?v=20260927-headspace1" });
+    await init({ module_or_path: "/pkg/binaural_explorer_web_bg.wasm?v=20260927-stream1" });
     app = new BinauralApp();
     const response = await fetch("/assets/mit-kemar.bhrtf");
     if (!response.ok) {
@@ -461,7 +486,7 @@ elements.audioFile.addEventListener("change", () => {
     });
   } else {
     fileLoadGeneration += 1;
-    clearUploadedAudio("No file selected. Choose or drop browser-supported audio, up to 60 seconds.");
+    clearUploadedAudio("No file selected. Choose or drop browser-supported audio, up to 2 GiB.");
   }
 });
 
@@ -638,6 +663,10 @@ elements.canvas.addEventListener("wheel", (event) => {
 }, { passive: false });
 new ResizeObserver(scheduleRendererResize).observe(elements.canvas);
 window.addEventListener("resize", scheduleRendererResize);
+window.addEventListener("beforeunload", () => {
+  browserAudio.stop();
+  if (uploadedMedia) browserAudio.releaseMediaAsset(uploadedMedia);
+});
 
 for (const button of elements.cameraPresets) {
   button.addEventListener("click", () => {

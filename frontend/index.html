@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Binaural HRTF Explorer</title>
-    <link rel="stylesheet" href="/styles.css?v=20260927-info1">
+    <link rel="stylesheet" href="/styles.css?v=20260927-stream1">
   </head>
   <body>
     <main class="app-shell">
@@ -25,7 +25,7 @@
         <h3>Understanding directions</h3>
         <p><strong>Every direction is relative to the head in the center.</strong> Left means the head’s left ear, right means its right ear, and front means the direction its face points.</p>
         <p>When the head faces you, its left appears on your right side of the screen—just like another person facing you. The source controls, azimuth, HRIR plots, and headphone channels all follow the head’s perspective.</p>
-        <p>For the intended binaural effect, listen through headphones. Uploaded audio remains in browser memory and is never sent to the server.</p>
+        <p>For the intended binaural effect, listen through headphones. Uploaded audio streams locally and is never sent to the server.</p>
         <button id="info-close" class="dialog-close" type="button">Close</button>
       </dialog>
 
@@ -41,8 +41,8 @@
             </select>
             <label for="audio-file">Custom audio</label>
             <input id="audio-file" type="file" accept="audio/*" disabled>
-            <p id="file-status" class="file-status">No file selected. Choose or drop browser-supported audio, up to 60 seconds.</p>
-            <p class="privacy-note">The file stays in browser memory and is never uploaded.</p>
+            <p id="file-status" class="file-status">No file selected. Choose or drop browser-supported audio, up to 2 GiB.</p>
+            <p class="privacy-note">The file streams locally in your browser and is never uploaded.</p>
             <label for="volume">Volume <output id="volume-value">-6 dB</output></label>
             <input id="volume" type="range" min="-30" max="12" step="1" value="-6" disabled>
             <p id="volume-warning" class="gain-warning" hidden>Positive gain can clip the output.</p>
@@ -173,6 +173,6 @@
 
       <footer>Use headphones for binaural playback. Audio processing stays in this browser.</footer>
     </main>
-    <script type="module" src="/main.js?v=20260927-info1"></script>
+    <script type="module" src="/main.js?v=20260927-stream1"></script>
   </body>
 </html>

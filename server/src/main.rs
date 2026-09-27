@@ -178,7 +178,7 @@ mod tests {
         assert!(INDEX_HTML.contains("id=\"info-dialog\""));
         assert!(INDEX_HTML.contains("Every direction is relative to the head"));
         assert!(INDEX_HTML.contains("id=\"playback-progress\""));
-        assert!(INDEX_HTML.contains("up to 60 seconds"));
+        assert!(INDEX_HTML.contains("up to 2 GiB"));
         assert!(INDEX_HTML.contains("data-camera-preset=\"front\""));
         assert!(INDEX_HTML.contains("data-source-preset=\"front\""));
         assert!(INDEX_HTML.contains("id=\"azimuth-number\""));
@@ -204,6 +204,9 @@ mod tests {
         assert!(AUDIO_JS.contains("mapHeadRelativeHrirToHeadphones"));
         assert!(AUDIO_JS.contains("MAX_VOLUME_DECIBELS = 12"));
         assert!(AUDIO_JS.contains("playSpatializedMono"));
+        assert!(AUDIO_JS.contains("playSpatializedMedia"));
+        assert!(AUDIO_JS.contains("createMediaElementSource"));
+        assert!(!AUDIO_JS.contains("decodeAudioData"));
         assert!(AUDIO_JS.contains("validateAudioFile"));
         assert!(AUDIO_WORKLET_BINDGEN_JS.contains("let wasm_bindgen"));
         assert!(AUDIO_WORKLET_PRELUDE.contains("TextDecoder"));
