@@ -1,0 +1,92 @@
+name: Deploy GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Install Rust and WebAssembly target
+        run: |
+          rustup toolchain install 1.85.0 --profile minimal
+          rustup default 1.85.0
+          rustup target add wasm32-unknown-unknown
+
+      - name: Install wasm-bindgen CLI
+        run: cargo install wasm-bindgen-cli --version 0.2.128 --locked
+
+      - name: Build WebAssembly
+        run: |
+          cargo build \
+            -p binaural-explorer-web \
+            -p binaural-audio-worklet \
+            --target wasm32-unknown-unknown \
+            --release
+
+      - name: Generate browser bindings
+        run: |
+          wasm-bindgen \
+            --target web \
+            --out-dir frontend/pkg \
+            --out-name binaural_explorer_web \
+            target/wasm32-unknown-unknown/release/binaural_explorer_web.wasm
+
+          wasm-bindgen \
+            --target no-modules \
+            --out-dir frontend/pkg \
+            --out-name binaural_audio_worklet_nomodule \
+            target/wasm32-unknown-unknown/release/binaural_audio_worklet.wasm
+
+          node tools/build-audio-worklet.mjs
+
+      - name: Test project and static assets
+        run: |
+          cargo test --workspace
+          node --experimental-default-type=module --test \
+            frontend/audio.test.mjs \
+            frontend/audio-worklet.test.mjs \
+            frontend/hrir-plot.test.mjs \
+            frontend/static-assets.test.mjs
+          node tools/build-audio-worklet.mjs --check
+
+      - name: Include redistribution notices
+        run: |
+          cp LICENSE frontend/LICENSE.txt
+          cp THIRD_PARTY_NOTICES frontend/THIRD_PARTY_NOTICES.txt
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: frontend
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v5

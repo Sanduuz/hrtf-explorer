@@ -1,2 +1,8 @@
 /target/
 
+# Local test media. Uploaded audio is browser-local and is not a project asset.
+/*.mp3
+/*.wav
+
+# Editor temporary files.
+*.swp
