@@ -66,7 +66,7 @@ cargo run
 
 Then open <http://127.0.0.1:3000>.
 
-To rebuild the browser module, install the target and a CLI version matching the workspace's `wasm-bindgen` crate, then run:
+The application crates support Rust 1.85, but rebuilding the browser artifacts requires Rust 1.86 or newer because `wasm-bindgen-cli 0.2.128` has that higher toolchain requirement. Install the WASM target and a CLI version matching the workspace's `wasm-bindgen` crate, then run:
 
 ```bash
 rustup target add wasm32-unknown-unknown
