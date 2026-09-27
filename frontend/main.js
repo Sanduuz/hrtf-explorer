@@ -1,6 +1,12 @@
-import init, { BinauralApp } from "/pkg/binaural_explorer_web.js?v=20260927-headalign3";
-import { BrowserAudio } from "/audio.js?v=20260927-stream1";
-import { renderHrirPlot } from "/hrir-plot.js?v=20260927-stream1";
+import init, { BinauralApp } from "./pkg/binaural_explorer_web.js?v=20260927-static1";
+import { BrowserAudio } from "./audio.js?v=20260927-static1";
+import { renderHrirPlot } from "./hrir-plot.js?v=20260927-static1";
+
+const WEB_WASM_URL = new URL(
+  "./pkg/binaural_explorer_web_bg.wasm?v=20260927-static1",
+  import.meta.url,
+);
+const HRTF_DATASET_URL = new URL("./assets/mit-kemar.bhrtf", import.meta.url);
 
 const elements = {
   status: document.querySelector("#status"),
@@ -415,9 +421,9 @@ async function togglePlayback() {
 
 async function start() {
   try {
-    await init({ module_or_path: "/pkg/binaural_explorer_web_bg.wasm?v=20260927-headalign3" });
+    await init({ module_or_path: WEB_WASM_URL });
     app = new BinauralApp();
-    const response = await fetch("/assets/mit-kemar.bhrtf");
+    const response = await fetch(HRTF_DATASET_URL);
     if (!response.ok) {
       throw new Error(`HRTF request failed with HTTP ${response.status}`);
     }

@@ -69,9 +69,10 @@ wasm-bindgen \
   --out-dir frontend/pkg \
   --out-name binaural_audio_worklet_nomodule \
   target/wasm32-unknown-unknown/release/binaural_audio_worklet.wasm
+node tools/build-audio-worklet.mjs
 ```
 
-The generated JavaScript and WASM are checked in so `cargo run -p binaural-explorer-server` works without a separate frontend toolchain.
+The final command combines the AudioWorklet prelude, `wasm-bindgen` no-modules glue, and processor body into `frontend/audio-worklet-bundle.js`. The generated JavaScript, WASM, and worklet bundle are checked in so `cargo run -p binaural-explorer-server` works without a separate frontend toolchain.
 
 Full validation:
 
@@ -83,6 +84,8 @@ cargo clippy -p binaural-explorer-web -p binaural-audio-worklet \
 cargo test --workspace
 node --experimental-default-type=module --test frontend/audio.test.mjs
 node --experimental-default-type=module --test frontend/audio-worklet.test.mjs
+node --experimental-default-type=module --test frontend/static-assets.test.mjs
+node tools/build-audio-worklet.mjs --check
 ```
 
 ## Coordinate convention
@@ -214,11 +217,17 @@ The canonical processing rate is the dataset's native 44,100 Hz. The browser exp
 
 The current page generates complete mono test signals in Rust/WASM or accepts a browser-supported audio file through `<input type="file">`. Built-in signals use an `AudioBufferSourceNode`. Uploaded files receive a local object URL and stream through an `HTMLAudioElement` plus `MediaElementAudioSourceNode`; the full recording is not decoded into a JavaScript sample array. The worklet's explicit mono, speaker-interpreted input makes Web Audio downmix stereo and multichannel media sensibly before Rust convolution. Both source paths deliver render quanta through the same worklet. JavaScript writes each quantum into reusable WASM input/output views, makes one processing call, and copies the stereo result to Web Audio. Steady-state processing performs no Rust allocation and creates no result objects; there are no per-sample JS/WASM calls. If a browser changes its render-quantum length, the worklet resizes and reacquires those buffers once, then resumes the same allocation-free steady state.
 
-Axum serves the audio processor and `wasm-bindgen`'s `no-modules` glue as one self-contained worklet script. This avoids inconsistent imported-module registration in browser audio-rendering scopes. The server also prepends a tiny ASCII `TextDecoder` fallback for `wasm-bindgen`'s defensive error path because Chromium does not expose `TextDecoder` inside `AudioWorkletGlobalScope`; normal DSP does not use that fallback.
+The frontend build combines the audio processor and `wasm-bindgen`'s `no-modules` glue into one self-contained static worklet script. This avoids inconsistent imported-module registration in browser audio-rendering scopes and removes the need for server-side script assembly. The bundle also includes a tiny ASCII `TextDecoder` fallback for `wasm-bindgen`'s defensive error path because Chromium does not expose `TextDecoder` inside `AudioWorkletGlobalScope`; normal DSP does not use that fallback.
 
 Uploaded files remain local and are addressed through revocable browser object URLs. They are never sent to Axum, persisted server-side, submitted to analytics, or sent to remote DSP. Files can be selected with the native picker or dropped onto the Audio Source panel. Codec support follows the browser's media-element implementation rather than claiming universal format support. File-size, metadata, format, and playback errors are shown without disabling the built-in signals.
 
 Custom recordings have no application-level duration limit. Encoded files are limited to 2 GiB as a defensive browser-input bound. Streaming avoids the duration-proportional decoded `Float32Array` and `AudioBuffer` allocations used by the earlier 60-second implementation. Selecting another file or clearing the input revokes the previous object URL.
+
+## Static hosting
+
+`frontend/` is a self-contained static site after the WASM modules and AudioWorklet bundle have been built. HTML references are relative to `index.html`, while JavaScript resolves datasets, WASM modules, and the worklet relative to its own `import.meta.url`. The same files therefore work at a domain root or under a project subpath such as `https://example.github.io/binaural-explorer/`.
+
+Axum remains the convenient local development server, but it is not part of the deployed audio path and is not required by a static host. A future GitHub Pages workflow can publish the contents of `frontend/` directly after running the documented build commands. Use HTTP or HTTPS rather than opening `index.html` through `file://`, because browser security rules restrict WASM, AudioWorklet, media, and GPU features in local-file contexts.
 
 ## License
 

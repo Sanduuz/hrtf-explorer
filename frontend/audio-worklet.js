@@ -1,5 +1,5 @@
-// The server prepends wasm-bindgen's no-modules glue to this processor body. Keeping the
-// registration in one response avoids inconsistent imported-module handling across worklets.
+// The build script prepends wasm-bindgen's no-modules glue to this processor body. Keeping the
+// registration in one static file avoids inconsistent imported-module handling across worklets.
 const { initSync, RealtimeAudioProcessor } = wasm_bindgen;
 
 class BinauralHrtfProcessor extends AudioWorkletProcessor {

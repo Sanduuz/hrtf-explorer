@@ -14,24 +14,10 @@ const STYLES_CSS: &str = include_str!("../../frontend/styles.css");
 const MAIN_JS: &str = include_str!("../../frontend/main.js");
 const AUDIO_JS: &str = include_str!("../../frontend/audio.js");
 const HRIR_PLOT_JS: &str = include_str!("../../frontend/hrir-plot.js");
-const AUDIO_WORKLET_PROCESSOR_JS: &str = include_str!("../../frontend/audio-worklet.js");
-const AUDIO_WORKLET_PRELUDE: &str = r#"
-if (typeof TextDecoder === "undefined") {
-  globalThis.TextDecoder = class {
-    decode(bytes) {
-      if (!bytes) return "";
-      let text = "";
-      for (const byte of bytes) text += String.fromCharCode(byte);
-      return text;
-    }
-  };
-}
-"#;
+const AUDIO_WORKLET_BUNDLE_JS: &str = include_str!("../../frontend/audio-worklet-bundle.js");
 const HRTF_DATASET: &[u8] = include_bytes!("../../frontend/assets/mit-kemar.bhrtf");
 const WASM_BINDGEN_JS: &str = include_str!("../../frontend/pkg/binaural_explorer_web.js");
 const WEB_WASM: &[u8] = include_bytes!("../../frontend/pkg/binaural_explorer_web_bg.wasm");
-const AUDIO_WORKLET_BINDGEN_JS: &str =
-    include_str!("../../frontend/pkg/binaural_audio_worklet_nomodule.js");
 const AUDIO_WORKLET_WASM: &[u8] =
     include_bytes!("../../frontend/pkg/binaural_audio_worklet_nomodule_bg.wasm");
 
@@ -98,16 +84,14 @@ fn asset_routes() -> Router {
             }),
         )
         .route(
-            "/audio-worklet.js",
+            "/audio-worklet-bundle.js",
             get(|| async {
                 (
                     [(
                         axum::http::header::CONTENT_TYPE,
                         "text/javascript; charset=utf-8",
                     )],
-                    format!(
-                        "{AUDIO_WORKLET_PRELUDE}\n{AUDIO_WORKLET_BINDGEN_JS}\n{AUDIO_WORKLET_PROCESSOR_JS}"
-                    ),
+                    AUDIO_WORKLET_BUNDLE_JS,
                 )
             }),
         )
@@ -196,11 +180,14 @@ mod tests {
         assert!(INDEX_HTML.contains("+X right"));
         assert!(INDEX_HTML.contains("right-drag orbit"));
         assert!(!INDEX_HTML.contains("two fingers orbit/pinch"));
+        assert!(INDEX_HTML.contains("href=\"./styles.css"));
+        assert!(INDEX_HTML.contains("src=\"./main.js"));
         assert!(MAIN_JS.contains("navigate_camera"));
         assert!(MAIN_JS.contains("showModal"));
         assert!(MAIN_JS.contains("set_display_layer"));
         assert!(MAIN_JS.contains("set_interpolation_method"));
         assert!(MAIN_JS.contains("renderHrirPlot"));
+        assert!(MAIN_JS.contains("new URL(\"./assets/mit-kemar.bhrtf\""));
         assert!(AUDIO_JS.contains("mapHeadRelativeHrirToHeadphones"));
         assert!(AUDIO_JS.contains("MAX_VOLUME_DECIBELS = 12"));
         assert!(AUDIO_JS.contains("playSpatializedMono"));
@@ -208,9 +195,10 @@ mod tests {
         assert!(AUDIO_JS.contains("createMediaElementSource"));
         assert!(!AUDIO_JS.contains("decodeAudioData"));
         assert!(AUDIO_JS.contains("validateAudioFile"));
-        assert!(AUDIO_WORKLET_BINDGEN_JS.contains("let wasm_bindgen"));
-        assert!(AUDIO_WORKLET_PRELUDE.contains("TextDecoder"));
-        assert!(AUDIO_WORKLET_PROCESSOR_JS.contains("binaural-hrtf-processor"));
+        assert!(AUDIO_JS.contains("./audio-worklet-bundle.js"));
+        assert!(AUDIO_WORKLET_BUNDLE_JS.contains("let wasm_bindgen"));
+        assert!(AUDIO_WORKLET_BUNDLE_JS.contains("TextDecoder"));
+        assert!(AUDIO_WORKLET_BUNDLE_JS.contains("binaural-hrtf-processor"));
         assert!(!AUDIO_WORKLET_WASM.is_empty());
     }
 }
