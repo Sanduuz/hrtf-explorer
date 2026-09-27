@@ -33,9 +33,96 @@ header {
   margin-bottom: 0.75rem;
 }
 
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
 h1 {
   margin: 0;
   font-size: clamp(1.8rem, 4vw, 2.4rem);
+}
+
+.info-button {
+  width: 1.7rem;
+  min-height: 1.7rem;
+  padding: 0;
+  border-color: #60728b;
+  border-radius: 50%;
+  background: #182231;
+  color: #b9c8d9;
+  font-family: Georgia, serif;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.info-button:hover {
+  border-color: #55b7ff;
+  color: #fff;
+}
+
+#info-dialog {
+  width: min(32rem, calc(100vw - 2rem));
+  padding: 1.2rem;
+  border: 1px solid #40516a;
+  border-radius: 0.65rem;
+  background: #131c28;
+  color: #dfe8f3;
+  box-shadow: 0 1.5rem 5rem #000c;
+}
+
+#info-dialog::backdrop {
+  background: #03070dbb;
+  backdrop-filter: blur(2px);
+}
+
+#info-dialog p {
+  margin: 0.8rem 0;
+  color: #bcc9d8;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+#info-dialog strong {
+  color: #fff;
+}
+
+#info-dialog h3 {
+  margin: 1.15rem 0 0;
+  color: #79c5ff;
+  font-size: 0.9rem;
+}
+
+.dialog-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.dialog-heading h2 {
+  margin: 0;
+  color: #e7edf5;
+}
+
+.dialog-close-icon {
+  width: 1.8rem;
+  min-height: 1.8rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #a9b7c8;
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.dialog-close {
+  display: block;
+  min-height: 2.25rem;
+  margin: 1rem 0 0 auto;
+  padding: 0 1.2rem;
 }
 
 #status {

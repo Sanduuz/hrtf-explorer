@@ -4,14 +4,30 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Binaural HRTF Explorer</title>
-    <link rel="stylesheet" href="/styles.css?v=20260927-headspace1">
+    <link rel="stylesheet" href="/styles.css?v=20260927-info1">
   </head>
   <body>
     <main class="app-shell">
       <header>
-        <h1>Binaural HRTF Explorer</h1>
+        <div class="title-row">
+          <h1>Binaural HRTF Explorer</h1>
+          <button id="info-button" class="info-button" type="button" aria-label="About Binaural HRTF Explorer" aria-haspopup="dialog" aria-controls="info-dialog">i</button>
+        </div>
         <p id="status" role="status">Loading Rust/WASM, WebGPU, and HRTF data…</p>
       </header>
+
+      <dialog id="info-dialog" aria-labelledby="info-title">
+        <div class="dialog-heading">
+          <h2 id="info-title">About this project</h2>
+          <button id="info-close-icon" class="dialog-close-icon" type="button" aria-label="Close information">×</button>
+        </div>
+        <p>This interactive explorer uses measured KEMAR head-related impulse responses to demonstrate how sound direction can be reproduced over headphones.</p>
+        <h3>Understanding directions</h3>
+        <p><strong>Every direction is relative to the head in the center.</strong> Left means the head’s left ear, right means its right ear, and front means the direction its face points.</p>
+        <p>When the head faces you, its left appears on your right side of the screen—just like another person facing you. The source controls, azimuth, HRIR plots, and headphone channels all follow the head’s perspective.</p>
+        <p>For the intended binaural effect, listen through headphones. Uploaded audio remains in browser memory and is never sent to the server.</p>
+        <button id="info-close" class="dialog-close" type="button">Close</button>
+      </dialog>
 
       <div class="workspace">
         <aside class="sidebar left-sidebar">
@@ -157,6 +173,6 @@
 
       <footer>Use headphones for binaural playback. Audio processing stays in this browser.</footer>
     </main>
-    <script type="module" src="/main.js?v=20260927-headspace1"></script>
+    <script type="module" src="/main.js?v=20260927-info1"></script>
   </body>
 </html>

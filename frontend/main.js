@@ -4,6 +4,10 @@ import { renderHrirPlot } from "/hrir-plot.js?v=20260927-headspace1";
 
 const elements = {
   status: document.querySelector("#status"),
+  infoButton: document.querySelector("#info-button"),
+  infoDialog: document.querySelector("#info-dialog"),
+  infoClose: document.querySelector("#info-close"),
+  infoCloseIcon: document.querySelector("#info-close-icon"),
   audioPanel: document.querySelector("#audio-source-panel"),
   canvas: document.querySelector("#scene"),
   signal: document.querySelector("#signal"),
@@ -34,6 +38,14 @@ const elements = {
   playbackProgress: document.querySelector("#playback-progress"),
   playbackTime: document.querySelector("#playback-time"),
 };
+
+elements.infoButton.addEventListener("click", () => elements.infoDialog.showModal());
+for (const closeButton of [elements.infoClose, elements.infoCloseIcon]) {
+  closeButton.addEventListener("click", () => elements.infoDialog.close());
+}
+elements.infoDialog.addEventListener("click", (event) => {
+  if (event.target === elements.infoDialog) elements.infoDialog.close();
+});
 
 let app;
 const browserAudio = new BrowserAudio();

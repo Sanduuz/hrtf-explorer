@@ -175,6 +175,8 @@ mod tests {
         assert!(INDEX_HTML.contains("id=\"volume-warning\""));
         assert!(INDEX_HTML.contains("id=\"loop\""));
         assert!(INDEX_HTML.contains("id=\"audio-source-panel\""));
+        assert!(INDEX_HTML.contains("id=\"info-dialog\""));
+        assert!(INDEX_HTML.contains("Every direction is relative to the head"));
         assert!(INDEX_HTML.contains("id=\"playback-progress\""));
         assert!(INDEX_HTML.contains("up to 60 seconds"));
         assert!(INDEX_HTML.contains("data-camera-preset=\"front\""));
@@ -195,6 +197,7 @@ mod tests {
         assert!(INDEX_HTML.contains("right-drag orbit"));
         assert!(!INDEX_HTML.contains("two fingers orbit/pinch"));
         assert!(MAIN_JS.contains("navigate_camera"));
+        assert!(MAIN_JS.contains("showModal"));
         assert!(MAIN_JS.contains("set_display_layer"));
         assert!(MAIN_JS.contains("set_interpolation_method"));
         assert!(MAIN_JS.contains("renderHrirPlot"));
