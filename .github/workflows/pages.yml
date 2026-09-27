@@ -27,9 +27,8 @@ jobs:
 
       - name: Install Rust and WebAssembly target
         run: |
-          rustup toolchain install 1.86.0 --profile minimal
-          rustup default 1.86.0
-          rustup target add wasm32-unknown-unknown
+          rustup toolchain install stable --profile minimal --target wasm32-unknown-unknown
+          rustup default stable
 
       - name: Install wasm-bindgen CLI
         run: cargo install wasm-bindgen-cli --version 0.2.128 --locked

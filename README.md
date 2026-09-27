@@ -66,12 +66,12 @@ cargo run
 
 Then open <http://127.0.0.1:3000>.
 
-The application crates support Rust 1.85, but rebuilding the browser artifacts requires Rust 1.86 or newer because `wasm-bindgen-cli 0.2.128` has that higher toolchain requirement. Install the WASM target and a CLI version matching the workspace's `wasm-bindgen` crate, then run:
+The application crates support Rust 1.85. Rebuilding the browser artifacts uses the current stable Rust toolchain because the build-time dependency graph of `wasm-bindgen-cli 0.2.128` currently requires Rust 1.88 or newer. Install the WASM target and a CLI version matching the workspace's `wasm-bindgen` crate, then run:
 
 ```bash
-rustup target add wasm32-unknown-unknown
-cargo install wasm-bindgen-cli --version 0.2.128 --locked
-cargo build -p binaural-explorer-web -p binaural-audio-worklet \
+rustup toolchain install stable --profile minimal --target wasm32-unknown-unknown
+cargo +stable install wasm-bindgen-cli --version 0.2.128 --locked
+cargo +stable build -p binaural-explorer-web -p binaural-audio-worklet \
   --target wasm32-unknown-unknown --release
 wasm-bindgen \
   --target web \
