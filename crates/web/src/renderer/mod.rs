@@ -275,10 +275,17 @@ impl Renderer {
         {
             return Err(RendererError::new("invalid canvas dimensions"));
         }
-        let physical_width = (css_width * device_pixel_ratio).round().clamp(1.0, 8192.0);
-        let physical_height = (css_height * device_pixel_ratio).round().clamp(1.0, 8192.0);
+        let requested_width = f64::from(css_width) * f64::from(device_pixel_ratio);
+        let requested_height = f64::from(css_height) * f64::from(device_pixel_ratio);
+        let max_dimension = f64::from(self.device.limits().max_texture_dimension_2d);
+        let resolution_scale = (max_dimension / requested_width.max(requested_height)).min(1.0);
+        let physical_width = (requested_width * resolution_scale).round().max(1.0);
+        let physical_height = (requested_height * resolution_scale).round().max(1.0);
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let (width, height) = (physical_width as u32, physical_height as u32);
+        if width == self.config.width && height == self.config.height {
+            return Ok(());
+        }
         self.canvas.set_width(width);
         self.canvas.set_height(height);
         self.config.width = width;

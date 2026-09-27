@@ -1,6 +1,6 @@
-import init, { BinauralApp } from "/pkg/binaural_explorer_web.js?v=20260924-fft3";
-import { BrowserAudio } from "/audio.js?v=20260924-fft3";
-import { renderHrirPlot } from "/hrir-plot.js?v=20260924-fft3";
+import init, { BinauralApp } from "/pkg/binaural_explorer_web.js?v=20260924-resize2";
+import { BrowserAudio } from "/audio.js?v=20260924-resize2";
+import { renderHrirPlot } from "/hrir-plot.js?v=20260924-resize2";
 
 const elements = {
   status: document.querySelector("#status"),
@@ -49,6 +49,9 @@ let fileLoadGeneration = 0;
 let playbackProgressFrame;
 let playbackDisplayDuration = 10;
 let activePlayback;
+let rendererResizeFrame;
+let lastRendererPhysicalWidth = 0;
+let lastRendererPhysicalHeight = 0;
 
 const MAX_CUSTOM_DURATION_SECONDS = 60;
 const MAX_CUSTOM_FILE_BYTES = 50 * 1024 * 1024;
@@ -158,12 +161,33 @@ function updateDirectionFromNumbers() {
   updateDirection();
 }
 
-function resizeRenderer() {
+function resizeRendererNow() {
   if (!rendererReady) return;
   const bounds = elements.canvas.getBoundingClientRect();
-  if (bounds.width > 0 && bounds.height > 0) {
-    app.resize_renderer(bounds.width, bounds.height, window.devicePixelRatio || 1);
+  const devicePixelRatio = window.devicePixelRatio || 1;
+  if (!Number.isFinite(bounds.width) || !Number.isFinite(bounds.height)
+      || !Number.isFinite(devicePixelRatio)
+      || bounds.width <= 0 || bounds.height <= 0 || devicePixelRatio <= 0) return;
+
+  const physicalWidth = Math.round(bounds.width * devicePixelRatio);
+  const physicalHeight = Math.round(bounds.height * devicePixelRatio);
+  if (physicalWidth === lastRendererPhysicalWidth
+      && physicalHeight === lastRendererPhysicalHeight) return;
+
+  app.resize_renderer(bounds.width, bounds.height, devicePixelRatio);
+  lastRendererPhysicalWidth = physicalWidth;
+  lastRendererPhysicalHeight = physicalHeight;
+}
+
+function scheduleRendererResize() {
+  if (!rendererReady) return;
+  if (rendererResizeFrame !== undefined) {
+    cancelAnimationFrame(rendererResizeFrame);
   }
+  rendererResizeFrame = requestAnimationFrame(() => {
+    rendererResizeFrame = undefined;
+    resizeRendererNow();
+  });
 }
 
 function stopPlayback() {
@@ -354,7 +378,7 @@ async function togglePlayback() {
 
 async function start() {
   try {
-    await init({ module_or_path: "/pkg/binaural_explorer_web_bg.wasm?v=20260924-fft3" });
+    await init({ module_or_path: "/pkg/binaural_explorer_web_bg.wasm?v=20260924-resize2" });
     app = new BinauralApp();
     const response = await fetch("/assets/mit-kemar.bhrtf");
     if (!response.ok) {
@@ -364,7 +388,7 @@ async function start() {
     browserAudio.configureSampleRate(app.sample_rate());
     await app.initialize_renderer(elements.canvas);
     rendererReady = true;
-    resizeRenderer();
+    scheduleRendererResize();
     const probe = app.process_audio(new Float32Array([1]));
     const probeLength = probe.left.length;
     const probeChannelsMatch = probeLength === probe.right.length;
@@ -600,7 +624,8 @@ elements.canvas.addEventListener("wheel", (event) => {
   event.preventDefault();
   app.zoom_camera(event.deltaY);
 }, { passive: false });
-new ResizeObserver(resizeRenderer).observe(elements.canvas);
+new ResizeObserver(scheduleRendererResize).observe(elements.canvas);
+window.addEventListener("resize", scheduleRendererResize);
 
 for (const button of elements.cameraPresets) {
   button.addEventListener("click", () => {

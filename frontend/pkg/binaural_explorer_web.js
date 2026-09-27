@@ -1276,6 +1276,10 @@ function __wbg_get_imports() {
             const ret = arg0.length;
             return ret;
         },
+        __wbg_limits_06bcb36c8409843b: function(arg0) {
+            const ret = arg0.limits;
+            return ret;
+        },
         __wbg_linkProgram_794fd290a759542a: function(arg0, arg1) {
             arg0.linkProgram(arg1);
         },
@@ -1292,6 +1296,130 @@ function __wbg_get_imports() {
         }, arguments); },
         __wbg_matches_0c791086704a6cb5: function(arg0) {
             const ret = arg0.matches;
+            return ret;
+        },
+        __wbg_maxBindGroupsPlusVertexBuffers_52369f089736ef9d: function(arg0) {
+            const ret = arg0.maxBindGroupsPlusVertexBuffers;
+            return ret;
+        },
+        __wbg_maxBindGroups_4e424afe6ce86ca2: function(arg0) {
+            const ret = arg0.maxBindGroups;
+            return ret;
+        },
+        __wbg_maxBindingsPerBindGroup_7d035da36821c44f: function(arg0) {
+            const ret = arg0.maxBindingsPerBindGroup;
+            return ret;
+        },
+        __wbg_maxBufferSize_423f4a084e32a195: function(arg0) {
+            const ret = arg0.maxBufferSize;
+            return ret;
+        },
+        __wbg_maxColorAttachmentBytesPerSample_c4cd9126f6d287c6: function(arg0) {
+            const ret = arg0.maxColorAttachmentBytesPerSample;
+            return ret;
+        },
+        __wbg_maxColorAttachments_d924670762b9e250: function(arg0) {
+            const ret = arg0.maxColorAttachments;
+            return ret;
+        },
+        __wbg_maxComputeInvocationsPerWorkgroup_707a3868f7cebb59: function(arg0) {
+            const ret = arg0.maxComputeInvocationsPerWorkgroup;
+            return ret;
+        },
+        __wbg_maxComputeWorkgroupSizeX_0a4d99463cbd6e5e: function(arg0) {
+            const ret = arg0.maxComputeWorkgroupSizeX;
+            return ret;
+        },
+        __wbg_maxComputeWorkgroupSizeY_85123ea0587f7558: function(arg0) {
+            const ret = arg0.maxComputeWorkgroupSizeY;
+            return ret;
+        },
+        __wbg_maxComputeWorkgroupSizeZ_a3186b4c5267d44f: function(arg0) {
+            const ret = arg0.maxComputeWorkgroupSizeZ;
+            return ret;
+        },
+        __wbg_maxComputeWorkgroupStorageSize_57b297355cfb6204: function(arg0) {
+            const ret = arg0.maxComputeWorkgroupStorageSize;
+            return ret;
+        },
+        __wbg_maxComputeWorkgroupsPerDimension_4158f95e673d54c4: function(arg0) {
+            const ret = arg0.maxComputeWorkgroupsPerDimension;
+            return ret;
+        },
+        __wbg_maxDynamicStorageBuffersPerPipelineLayout_226b0b70910aa16c: function(arg0) {
+            const ret = arg0.maxDynamicStorageBuffersPerPipelineLayout;
+            return ret;
+        },
+        __wbg_maxDynamicUniformBuffersPerPipelineLayout_0e835fda711fc7e6: function(arg0) {
+            const ret = arg0.maxDynamicUniformBuffersPerPipelineLayout;
+            return ret;
+        },
+        __wbg_maxInterStageShaderVariables_8c4a1d727e2aa35a: function(arg0) {
+            const ret = arg0.maxInterStageShaderVariables;
+            return ret;
+        },
+        __wbg_maxSampledTexturesPerShaderStage_6675f5e91d9a728a: function(arg0) {
+            const ret = arg0.maxSampledTexturesPerShaderStage;
+            return ret;
+        },
+        __wbg_maxSamplersPerShaderStage_1910fa38a6ed1e1f: function(arg0) {
+            const ret = arg0.maxSamplersPerShaderStage;
+            return ret;
+        },
+        __wbg_maxStorageBufferBindingSize_2e244bded070b18d: function(arg0) {
+            const ret = arg0.maxStorageBufferBindingSize;
+            return ret;
+        },
+        __wbg_maxStorageBuffersPerShaderStage_a285f3ebca51ca0d: function(arg0) {
+            const ret = arg0.maxStorageBuffersPerShaderStage;
+            return ret;
+        },
+        __wbg_maxStorageTexturesPerShaderStage_7aa946f0fc322a2b: function(arg0) {
+            const ret = arg0.maxStorageTexturesPerShaderStage;
+            return ret;
+        },
+        __wbg_maxTextureArrayLayers_0e699147ad00502d: function(arg0) {
+            const ret = arg0.maxTextureArrayLayers;
+            return ret;
+        },
+        __wbg_maxTextureDimension1D_aabf6add54decfe2: function(arg0) {
+            const ret = arg0.maxTextureDimension1D;
+            return ret;
+        },
+        __wbg_maxTextureDimension2D_dd598b27e9c0c1c4: function(arg0) {
+            const ret = arg0.maxTextureDimension2D;
+            return ret;
+        },
+        __wbg_maxTextureDimension3D_f944266c65dfd1a9: function(arg0) {
+            const ret = arg0.maxTextureDimension3D;
+            return ret;
+        },
+        __wbg_maxUniformBufferBindingSize_59fa6be7cfbeeb53: function(arg0) {
+            const ret = arg0.maxUniformBufferBindingSize;
+            return ret;
+        },
+        __wbg_maxUniformBuffersPerShaderStage_bee5f00a4d706c7f: function(arg0) {
+            const ret = arg0.maxUniformBuffersPerShaderStage;
+            return ret;
+        },
+        __wbg_maxVertexAttributes_5cf6392c4e9033fe: function(arg0) {
+            const ret = arg0.maxVertexAttributes;
+            return ret;
+        },
+        __wbg_maxVertexBufferArrayStride_548baa887375d865: function(arg0) {
+            const ret = arg0.maxVertexBufferArrayStride;
+            return ret;
+        },
+        __wbg_maxVertexBuffers_75d881156591f5da: function(arg0) {
+            const ret = arg0.maxVertexBuffers;
+            return ret;
+        },
+        __wbg_minStorageBufferOffsetAlignment_5ba9b77792bdadb3: function(arg0) {
+            const ret = arg0.minStorageBufferOffsetAlignment;
+            return ret;
+        },
+        __wbg_minUniformBufferOffsetAlignment_ab7d52a5293b22bd: function(arg0) {
+            const ret = arg0.minUniformBufferOffsetAlignment;
             return ret;
         },
         __wbg_navigator_d217ca64c4bbff48: function(arg0) {
@@ -2186,7 +2314,7 @@ function __wbg_get_imports() {
             arg0.writeBuffer(arg1, arg2, getArrayU8FromWasm0(arg3, arg4), arg5, arg6);
         }, arguments); },
         __wbindgen_generic_0000000000000001: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 2501, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 2503, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen_196a8f8e05f9fa6c___convert__closures_____invoke___wasm_bindgen_196a8f8e05f9fa6c___JsValue__core_f0fd674eaa06beef___result__Result_____wasm_bindgen_196a8f8e05f9fa6c___JsError___true_);
             return ret;
         },
