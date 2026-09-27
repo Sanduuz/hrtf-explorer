@@ -5,18 +5,18 @@ import {
   BrowserAudio,
   calculatePlaybackPosition,
   decibelsToGain,
-  mapFrontFacingSceneToHeadphones,
+  mapHeadRelativeHrirToHeadphones,
   validateAudioFile,
   validatePlaybackOffset,
 } from "./audio.js";
 
-test("front-facing presentation swaps the completed stereo channels", () => {
+test("head-relative HRIRs preserve anatomical headphone channels", () => {
   const left = new Float32Array([1, 2]);
   const right = new Float32Array([3, 4]);
-  const playback = mapFrontFacingSceneToHeadphones(left, right);
+  const playback = mapHeadRelativeHrirToHeadphones(left, right);
 
-  assert.strictEqual(playback.left, right);
-  assert.strictEqual(playback.right, left);
+  assert.strictEqual(playback.left, left);
+  assert.strictEqual(playback.right, right);
 });
 
 test("positive volume gain is supported through +12 dB", () => {
@@ -28,7 +28,7 @@ test("positive volume gain is supported through +12 dB", () => {
   assert.throws(() => audio.setVolumeDecibels(12.1), /between -60 dB and \+12 dB/);
 });
 
-test("real-time HRIR updates are cached in face-on device order", () => {
+test("real-time HRIR updates retain head-relative device order", () => {
   const audio = new BrowserAudio();
   const headLeft = new Float32Array([1, 2]);
   const headRight = new Float32Array([3, 4]);
@@ -37,8 +37,8 @@ test("real-time HRIR updates are cached in face-on device order", () => {
   audio.setHrir(headLeft, headRight);
 
   assert.equal(audio.processingSampleRate, 44_100);
-  assert.strictEqual(audio.deviceHrir.left, headRight);
-  assert.strictEqual(audio.deviceHrir.right, headLeft);
+  assert.strictEqual(audio.deviceHrir.left, headLeft);
+  assert.strictEqual(audio.deviceHrir.right, headRight);
 });
 
 test("custom audio files are bounded before browser decoding", () => {

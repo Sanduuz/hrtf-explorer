@@ -167,8 +167,9 @@ impl BinauralApp {
         selection.elevation_degrees = elevation_degrees;
         #[cfg(target_arch = "wasm32")]
         if let Some(renderer) = &mut self.renderer {
+            let scene_contributors = head_to_scene_contributors(&contributors);
             renderer
-                .set_selection(self.direction, &contributors)
+                .set_selection(head_to_scene_direction(self.direction), &scene_contributors)
                 .map_err(js_error)?;
             renderer.render().map_err(js_error)?;
         }
@@ -223,8 +224,9 @@ impl BinauralApp {
         self.interpolation_method = method;
         #[cfg(target_arch = "wasm32")]
         if let Some(renderer) = &mut self.renderer {
+            let scene_contributors = head_to_scene_contributors(&contributors);
             renderer
-                .set_selection(self.direction, &contributors)
+                .set_selection(head_to_scene_direction(self.direction), &scene_contributors)
                 .map_err(js_error)?;
             renderer.render().map_err(js_error)?;
         }
@@ -328,15 +330,16 @@ impl BinauralApp {
             .dataset()?
             .measurements()
             .iter()
-            .map(|measurement| measurement.direction)
+            .map(|measurement| head_to_scene_direction(measurement.direction))
             .collect::<Vec<_>>();
         let (_, contributors) =
             selection_state(self.dataset()?, self.direction, self.interpolation_method)?;
+        let scene_contributors = head_to_scene_contributors(&contributors);
         let renderer = renderer::Renderer::new(
             canvas,
-            self.direction,
+            head_to_scene_direction(self.direction),
             &measurement_directions,
-            &contributors,
+            &scene_contributors,
         )
         .await
         .map_err(js_error)?;
@@ -392,8 +395,10 @@ impl BinauralApp {
         let preset = match preset {
             "front" => camera::CameraPreset::Front,
             "back" => camera::CameraPreset::Back,
-            "left" => camera::CameraPreset::Left,
-            "right" => camera::CameraPreset::Right,
+            // Head-space X is reflected into the face-on scene, so the head's
+            // left and right viewpoints use the opposite scene-space camera.
+            "left" => camera::CameraPreset::Right,
+            "right" => camera::CameraPreset::Left,
             "top" => camera::CameraPreset::Top,
             "bottom" => camera::CameraPreset::Bottom,
             "reset" => camera::CameraPreset::Reset,
@@ -465,15 +470,17 @@ impl BinauralApp {
         css_width: f32,
         css_height: f32,
     ) -> Result<SelectionInfo, JsError> {
-        let direction = self
+        let scene_direction = self
             .renderer_mut()?
             .pick_direction(x, y, css_width, css_height)
             .map_err(js_error)?;
+        let direction = head_to_scene_direction(scene_direction);
         self.direction = direction;
         let (selection, contributors) =
             selection_state(self.dataset()?, direction, self.interpolation_method)?;
+        let scene_contributors = head_to_scene_contributors(&contributors);
         self.renderer_mut()?
-            .set_selection(direction, &contributors)
+            .set_selection(scene_direction, &scene_contributors)
             .map_err(js_error)?;
         self.renderer_mut()?.render().map_err(js_error)?;
         Ok(selection)
@@ -525,6 +532,24 @@ fn selection_state(
         },
         visuals,
     ))
+}
+
+/// Converts canonical head space into the face-on renderer's presentation space.
+///
+/// A person's anatomical left appears on the viewer's right when the face looks
+/// toward the viewer. Reflecting the lateral axis at this one boundary keeps the
+/// dataset, DSP, public angles, and headphone channels consistently head-relative.
+#[cfg(any(target_arch = "wasm32", test))]
+fn head_to_scene_direction(direction: Vec3) -> Vec3 {
+    Vec3::new(-direction.x, direction.y, direction.z)
+}
+
+#[cfg(target_arch = "wasm32")]
+fn head_to_scene_contributors(contributors: &[(Vec3, f32)]) -> Vec<(Vec3, f32)> {
+    contributors
+        .iter()
+        .map(|&(direction, weight)| (head_to_scene_direction(direction), weight))
+        .collect()
 }
 
 fn contributor_summary(contributors: &[InterpolationContributor]) -> String {
@@ -819,7 +844,7 @@ mod tests {
     }
 
     #[test]
-    fn direction_selection_drives_mirrored_binaural_rendering() {
+    fn direction_selection_preserves_head_relative_ear_order() {
         let mut app = packaged_app();
 
         let right_selection = app.set_direction(90.0, 0.0).unwrap();
@@ -837,6 +862,9 @@ mod tests {
         assert_ne!(source_on_right.left, source_on_right.right);
         assert_eq!(source_on_right.left, source_on_left.right);
         assert_eq!(source_on_right.right, source_on_left.left);
+        let energy = |samples: &[f32]| samples.iter().map(|sample| sample * sample).sum::<f32>();
+        assert!(energy(&source_on_left.left) > energy(&source_on_left.right));
+        assert!(energy(&source_on_right.right) > energy(&source_on_right.left));
     }
 
     #[test]
@@ -851,6 +879,20 @@ mod tests {
         assert!(top.y > 0.999);
         let bottom = app.set_source_preset("bottom").unwrap();
         assert!(bottom.y < -0.999);
+    }
+
+    #[test]
+    fn face_on_scene_reflects_only_the_head_lateral_axis() {
+        assert_eq!(head_to_scene_direction(Vec3::X), Vec3::NEG_X);
+        assert_eq!(head_to_scene_direction(Vec3::NEG_X), Vec3::X);
+        assert_eq!(head_to_scene_direction(Vec3::Y), Vec3::Y);
+        assert_eq!(head_to_scene_direction(Vec3::Z), Vec3::Z);
+
+        let direction = Vec3::new(0.25, -0.5, 0.75);
+        assert_eq!(
+            head_to_scene_direction(head_to_scene_direction(direction)),
+            direction
+        );
     }
 
     #[test]

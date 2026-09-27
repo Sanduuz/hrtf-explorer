@@ -179,8 +179,8 @@ impl Renderer {
             .map_err(RendererError::new)?
             .into_iter()
             .map(|vertex| Vertex {
-                position: vertex.position,
-                normal: vertex.normal,
+                position: crate::head_to_scene_direction(vertex.position),
+                normal: crate::head_to_scene_direction(vertex.normal),
                 color: [0.72, 0.73, 0.76, 1.0],
             })
             .collect::<Vec<_>>();
@@ -710,7 +710,7 @@ fn coordinate_axis_vertices() -> Vec<Vertex> {
     let mut vertices = Vec::with_capacity(30);
     push_axis_arrow(
         &mut vertices,
-        Vec3::X,
+        Vec3::NEG_X,
         Vec3::Y,
         Vec3::Z,
         [0.95, 0.25, 0.28, 1.0],

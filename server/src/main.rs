@@ -198,7 +198,7 @@ mod tests {
         assert!(MAIN_JS.contains("set_display_layer"));
         assert!(MAIN_JS.contains("set_interpolation_method"));
         assert!(MAIN_JS.contains("renderHrirPlot"));
-        assert!(AUDIO_JS.contains("mapFrontFacingSceneToHeadphones"));
+        assert!(AUDIO_JS.contains("mapHeadRelativeHrirToHeadphones"));
         assert!(AUDIO_JS.contains("MAX_VOLUME_DECIBELS = 12"));
         assert!(AUDIO_JS.contains("playSpatializedMono"));
         assert!(AUDIO_JS.contains("validateAudioFile"));

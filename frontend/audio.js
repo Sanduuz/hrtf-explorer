@@ -92,7 +92,7 @@ export class BrowserAudio {
     if (left.length === 0 || left.length !== right.length) {
       throw new Error("HRIR channels must be non-empty and equally sized");
     }
-    this.deviceHrir = mapFrontFacingSceneToHeadphones(left, right);
+    this.deviceHrir = mapHeadRelativeHrirToHeadphones(left, right);
     if (this.activeWorklet) {
       this.activeWorklet.port.postMessage({
         type: "hrir",
@@ -129,7 +129,7 @@ export class BrowserAudio {
     const context = this.getContext();
     await context.resume();
     const buffer = context.createBuffer(2, left.length, sampleRate);
-    const playback = mapFrontFacingSceneToHeadphones(left, right);
+    const playback = mapHeadRelativeHrirToHeadphones(left, right);
     buffer.copyToChannel(playback.left, 0);
     buffer.copyToChannel(playback.right, 1);
 
@@ -269,8 +269,8 @@ export class BrowserAudio {
       throw new Error("This browser does not support AudioWorklet");
     }
     this.workletModulePromise ??= Promise.all([
-      context.audioWorklet.addModule("/audio-worklet.js?v=20260924-resize2"),
-      fetch("/pkg/binaural_audio_worklet_nomodule_bg.wasm?v=20260924-resize2").then(async (response) => {
+      context.audioWorklet.addModule("/audio-worklet.js?v=20260927-headspace1"),
+      fetch("/pkg/binaural_audio_worklet_nomodule_bg.wasm?v=20260927-headspace1").then(async (response) => {
         if (!response.ok) {
           throw new Error(`Audio DSP WASM request failed with HTTP ${response.status}`);
         }
@@ -348,12 +348,11 @@ export function validatePlaybackOffset(offset, duration) {
 }
 
 /**
- * The visual head faces the viewer, making its anatomical lateral axis appear
- * mirrored. Keep the dataset and Rust DSP head-relative, and adapt only the
- * final device channels so a marker on the visible right is heard on the right.
+ * The renderer handles the face-on visual reflection. HRIR channels are already
+ * anatomical/head-relative and therefore map directly to the matching headphone.
  */
-export function mapFrontFacingSceneToHeadphones(left, right) {
-  return { left: right, right: left };
+export function mapHeadRelativeHrirToHeadphones(left, right) {
+  return { left, right };
 }
 
 export function downmixToMono(buffer) {
