@@ -220,6 +220,18 @@ Uploaded files remain local and are addressed through revocable browser object U
 
 Custom recordings have no application-level duration limit. Encoded files are limited to 2 GiB as a defensive browser-input bound. Streaming avoids the duration-proportional decoded `Float32Array` and `AudioBuffer` allocations used by the earlier 60-second implementation. Selecting another file or clearing the input revokes the previous object URL.
 
+## License
+
+Original source code in this repository is available under the [MIT License](LICENSE), copyright the Binaural HRTF Explorer contributors.
+
+Bundled third-party material is not relicensed under the project's MIT License:
+
+- The compact KEMAR measurements are Copyright 1994 MIT Media Laboratory. MIT provides the data without restrictions on use provided that Bill Gardner and Keith Martin are cited when it is used in research or commercial applications. The project retains that citation and records the conversion history in [the dataset notes](docs/mit-kemar.md).
+- The bundled male head basemesh by OpenGameArt user Pistachio is available under [CC0 1.0 Universal](https://creativecommons.org/publicdomain/zero/1.0/). Its provenance and modifications are documented in [the head-model notes](docs/head-model.md).
+- Rust dependencies and the generated JavaScript/WASM artifacts retain their respective permissive licenses. See [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES) and the locked dependency versions in `Cargo.lock`.
+
+Redistributions should include both `LICENSE` and `THIRD_PARTY_NOTICES`.
+
 ## Current limitations
 
 - The bundled HRTF is a non-individualized KEMAR measurement and may localize differently for each listener/headphone combination.

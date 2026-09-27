@@ -1,0 +1,107 @@
+Binaural HRTF Explorer
+Third-Party Notices
+
+This file records material and software incorporated into or distributed with
+Binaural HRTF Explorer. These notices do not change the license of the original
+project code. Third-party material remains subject to its own terms.
+
+-------------------------------------------------------------------------------
+MIT Media Lab compact KEMAR HRTF measurements
+-------------------------------------------------------------------------------
+
+Copyright 1994 MIT Media Laboratory.
+
+Authors and measurement creators:
+
+    Bill Gardner and Keith Martin
+    MIT Media Lab
+    "HRTF Measurements of a KEMAR Dummy-Head Microphone" (1994)
+
+Source:
+
+    https://sound.media.mit.edu/resources/KEMAR.html
+    https://sound.media.mit.edu/resources/KEMAR/compact.zip
+
+The source archive states that the data is provided free without restrictions
+on use, provided that Gardner and Martin are cited when the data is used in a
+research or commercial application.
+
+The repository's `frontend/assets/mit-kemar.bhrtf` file is a converted runtime
+representation of these measurements. Conversion and provenance details are in
+`docs/mit-kemar.md`. The project's MIT License does not relicense this dataset.
+
+-------------------------------------------------------------------------------
+Pistachio's "2 Human Head Basemeshes"
+-------------------------------------------------------------------------------
+
+Creator: Pistachio
+Asset: "2 Human Head Basemeshes" (male OBJ)
+Source: https://opengameart.org/content/2-human-head-basemeshes
+License: CC0 1.0 Universal
+License text: https://creativecommons.org/publicdomain/zero/1.0/legalcode
+
+The repository copy is `crates/web/assets/head-male.obj`. It is modified at
+build time through subdivision, trimming, alignment, triangulation, scaling,
+and normal generation. Additional provenance and the source checksum are in
+`docs/head-model.md`. CC0 does not require attribution; this notice is retained
+for provenance.
+
+-------------------------------------------------------------------------------
+Rust dependencies and generated WebAssembly
+-------------------------------------------------------------------------------
+
+The application uses third-party Rust crates. The exact dependency versions are
+locked in `Cargo.lock`, and their source distributions contain the applicable
+copyright notices and license texts. Generated JavaScript and WebAssembly in
+`frontend/pkg` incorporate code from these dependencies and remain subject to
+their terms.
+
+The dependency graph was reviewed from Cargo package metadata for the locked
+workspace on 2026-09-27. No GPL-family dependency was present. Every dependency
+uses a permissive license. Most dependencies are licensed under MIT or offer MIT
+as one of several permitted choices. The following packages require additional
+or different notices:
+
+Apache License 2.0:
+
+    codespan-reporting 0.13.1
+    gl_generator 0.14.0
+    glutin_wgl_sys 0.6.1
+    khronos_api 3.1.0
+    ryu 1.0.23 (Apache-2.0 option selected)
+    sync_wrapper 1.0.2
+
+MIT AND BSD 3-Clause:
+
+    matchit 0.8.4
+
+MIT AND Unicode License v3:
+
+    unicode-ident 1.0.26
+
+ISC:
+
+    libloading 0.8.9
+
+zlib License:
+
+    foldhash 0.2.0
+    slotmap 1.1.1
+
+Some other packages are multi-licensed under combinations that also mention
+Apache-2.0, BSD-2-Clause, BSL-1.0, ISC, the LLVM exception, the Unlicense, or
+the zlib License. For those packages, redistribution under the available MIT
+option is selected where permitted. `Cargo.lock` is authoritative for the
+packages and versions actually used by a build.
+
+Canonical license texts:
+
+    MIT:            https://opensource.org/license/mit
+    Apache-2.0:     https://www.apache.org/licenses/LICENSE-2.0
+    BSD-3-Clause:   https://opensource.org/license/bsd-3-clause
+    Unicode-3.0:    https://www.unicode.org/license.txt
+    ISC:            https://opensource.org/license/isc-license-txt
+    zlib:           https://www.zlib.net/zlib_license.html
+
+When updating dependencies, regenerate or review this section against
+`cargo metadata --format-version 1` and the license files shipped by each crate.
