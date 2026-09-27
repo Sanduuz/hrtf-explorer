@@ -6,6 +6,7 @@ members = [
     "server",
     "tools/hrtf-convert",
 ]
+default-members = ["server"]
 resolver = "2"
 
 [workspace.package]

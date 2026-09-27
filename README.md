@@ -4,6 +4,16 @@ A browser-oriented application for exploring binaural audio with measured head-r
 
 The browser page loads the real dataset into Rust/WASM, renders a pre-existing CC0 human head inside a spherical grid, supports orbit/zoom and ray-cast source dragging, and spatializes built-in or uploaded audio in real time. The source can move while audio is playing. Uploaded audio never leaves the browser.
 
+## Quick start
+
+Install Rust 1.85 or newer, then run the application from the repository root:
+
+```bash
+cargo run
+```
+
+Open <http://127.0.0.1:3000> in a WebGPU- or WebGL2-capable browser. Use headphones for the intended binaural effect. The generated browser files and KEMAR dataset are included in the repository, so no npm installation or separate frontend build is required for normal local use. Press `Ctrl+C` in the terminal to stop the server.
+
 ## Current architecture
 
 ```text
@@ -31,15 +41,19 @@ The browser page loads the real dataset into Rust/WASM, renders a pre-existing C
               static/data serving
 ```
 
-Workspace layout:
+## Workspace packages
 
-- `crates/hrtf`: native Rust coordinate math, validated runtime dataset representation, interpolation, convolution, and binaural rendering. It has no browser, WASM, Web Audio, server, or GPU dependency.
-- `crates/audio-worklet`: a small `wasm-bindgen` boundary around the stateful real-time convolver. It deliberately has no renderer or dataset parser.
-- `crates/web`: coarse-grained `wasm-bindgen` interface owning browser-side dataset, source direction, camera, picking, head-mesh preprocessing, and wgpu renderer state.
-- `tools/hrtf-convert`: offline converter for the official compact MIT KEMAR WAV archive.
-- `server`: intentionally small Axum binary. It embeds and serves the HTML/CSS/JavaScript, generated WASM, and converted dataset.
-- `frontend`: minimal vanilla interface, a small Web Audio adapter, and generated `wasm-bindgen` artifacts.
-- `docs/mit-kemar.md`: verified source metadata, conversion decisions, and attribution.
+| Cargo package | Path | Target | Purpose |
+| --- | --- | --- | --- |
+| `binaural-explorer-server` | `server` | Runnable binary; default | Starts the local Axum server and serves the complete browser application. Run with `cargo run`. |
+| `hrtf-convert` | `tools/hrtf-convert` | Runnable developer binary | Converts the official compact MIT KEMAR WAV archive into the runtime `.bhrtf` format. Run with `cargo run -p hrtf-convert -- <input> <output>`. |
+| `hrtf` | `crates/hrtf` | Native library | Owns coordinate math, dataset validation, interpolation, convolution, and binaural rendering without browser dependencies. |
+| `binaural-explorer-web` | `crates/web` | Rust/WASM library | Owns the browser-side dataset, source direction, camera, picking, head preprocessing, and wgpu renderer. |
+| `binaural-audio-worklet` | `crates/audio-worklet` | Rust/WASM library | Exposes the stateful real-time convolver to the Web Audio `AudioWorklet`. |
+
+Cargo's `-p` option selects workspace packages rather than filtering for executable targets, so its package listing includes the three library packages. They remain workspace members so `cargo test --workspace`, shared dependency versions, and workspace linting cover the complete application. The workspace's default member is the server, making plain `cargo run` the normal local startup command.
+
+Outside the Cargo workspace, `frontend` contains the vanilla interface, Web Audio adapter, and generated `wasm-bindgen` artifacts. `docs/mit-kemar.md` records verified dataset metadata, conversion decisions, and attribution.
 
 ## Development
 
@@ -47,7 +61,7 @@ The minimum supported Rust version is 1.85.
 
 ```bash
 cargo test --workspace
-cargo run -p binaural-explorer-server
+cargo run
 ```
 
 Then open <http://127.0.0.1:3000>.
@@ -72,7 +86,7 @@ wasm-bindgen \
 node tools/build-audio-worklet.mjs
 ```
 
-The final command combines the AudioWorklet prelude, `wasm-bindgen` no-modules glue, and processor body into `frontend/audio-worklet-bundle.js`. The generated JavaScript, WASM, and worklet bundle are checked in so `cargo run -p binaural-explorer-server` works without a separate frontend toolchain.
+The final command combines the AudioWorklet prelude, `wasm-bindgen` no-modules glue, and processor body into `frontend/audio-worklet-bundle.js`. The generated JavaScript, WASM, and worklet bundle are checked in so `cargo run` works without a separate frontend toolchain.
 
 Full validation:
 
