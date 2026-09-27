@@ -109,14 +109,14 @@ Angles at the public API are degrees; trigonometric calculations use radians. Da
 
 The canvas is rendered by Rust/WASM using wgpu 30 and WGSL; there is no Three.js or JavaScript scene graph. The scene contains:
 
-- a neutral human head basemesh with a full cranium, nose, ears, and neck;
+- a smooth neutral human head with a full cranium, nose, ears, and neck;
 - a latitude/longitude source-sphere grid;
 - all 710 actual KEMAR measurement directions as neutral markers;
 - orange markers and guide lines for the active interpolation contributors;
 - red +X/right, green +Y/up, and blue +Z/front orientation arrows with a matching legend;
 - a bright blue selected-source sphere with an additive glow.
 
-The head is the male mesh from Pistachio's CC0 **2 Human Head Basemeshes** asset. Cargo preprocesses the source OBJ into centered, canonical `+Z`-facing triangles with smooth normals; the browser does not contain a general-purpose model loader. The renderer reflects the lateral axis at the head-to-scene boundary because the anatomical left of a face looking toward the viewer appears on the viewer's right. Measurement points, contributors, source markers, picking, axes, and side-view presets use that same presentation transform. A neutral material and two-light WGSL shader reveal the facial shape without requiring textures. The model is visual only and never participates in acoustic processing. Source, license, checksum, and conversion details are recorded in [the head-model notes](docs/head-model.md).
+The head is the male mesh from Pistachio's CC0 **2 Human Head Basemeshes** asset. Cargo applies two Catmull–Clark subdivision levels, trims the lowest neck/shoulder region, aligns the visible ear centers with the source sphere's `Y = 0` center, and preprocesses the source OBJ into canonical `+Z`-facing triangles with area-weighted smooth normals. The browser does not contain a general-purpose model loader. The renderer reflects the lateral axis at the head-to-scene boundary because the anatomical left of a face looking toward the viewer appears on the viewer's right. Measurement points, contributors, source markers, picking, axes, and side-view presets use that same presentation transform. A neutral material and two-light WGSL shader reveal the facial shape without requiring textures. The model is visual only and never participates in acoustic processing. Source, license, checksum, and conversion details are recorded in [the head-model notes](docs/head-model.md).
 
 Pointer positions are converted from canvas coordinates to normalized device coordinates. Rust inverts the camera view-projection matrix to construct a 3D ray, intersects that ray with the radius-1.5 source sphere, and normalizes the hit relative to the origin. Camera orbiting therefore changes only the view, never the physical source coordinate system. Left-clicking or left-dragging selects the source at most once per animation frame, right-dragging orbits, and the wheel zooms within bounded limits. On touch screens, one finger selects and moves the source; two fingers orbit around their centroid and pinch to zoom. Once a two-finger gesture begins, its remaining finger cannot accidentally reposition the source. The canvas suppresses its context menu and native touch navigation so scene gestures remain uninterrupted.
 
@@ -224,5 +224,5 @@ Custom recordings have no application-level duration limit. Encoded files are li
 
 - The bundled HRTF is a non-individualized KEMAR measurement and may localize differently for each listener/headphone combination.
 - Custom audio is limited to 2 GiB of encoded input and browser-supported streaming codecs; practical seek behavior can vary by codec and browser.
-- The bundled head is a compact low-poly basemesh rather than a photorealistic scan.
+- The bundled head is a subdivided generic basemesh rather than a photorealistic scan.
 - The current server embeds the UI, generated WASM, and runtime dataset; general static-file serving is not needed yet.

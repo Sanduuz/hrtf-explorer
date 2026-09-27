@@ -63,9 +63,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn bundled_head_is_valid_centered_triangle_geometry() {
+    fn bundled_head_is_valid_ear_aligned_triangle_geometry() {
         let vertices = vertices().unwrap();
-        assert!(vertices.len() > 1_000);
+        assert!(vertices.len() > 30_000);
         assert_eq!(vertices.len() % 3, 0);
 
         let minimum = vertices
@@ -77,7 +77,31 @@ mod tests {
             .map(|vertex| vertex.position)
             .fold(Vec3::splat(f32::NEG_INFINITY), Vec3::max);
         assert!((maximum.y - minimum.y - 1.25).abs() < 1.0e-5);
-        assert!((maximum + minimum).abs_diff_eq(Vec3::ZERO, 1.0e-5));
+        assert!((maximum.x + minimum.x).abs() < 1.0e-5);
+        assert!((maximum.z + minimum.z).abs() < 1.0e-5);
+        assert!(maximum.x < 0.5, "the wide shoulder region must be trimmed");
+        let upper_head_start = f32::midpoint(minimum.y, maximum.y);
+        let lateral_radius = vertices
+            .iter()
+            .filter(|vertex| vertex.position.y >= upper_head_start)
+            .map(|vertex| vertex.position.x.abs())
+            .reduce(f32::max)
+            .unwrap();
+        let ear_vertices = vertices
+            .iter()
+            .filter(|vertex| {
+                vertex.position.y >= upper_head_start
+                    && vertex.position.x.abs() >= lateral_radius * 0.86
+            })
+            .collect::<Vec<_>>();
+        assert!(!ear_vertices.is_empty());
+        let ear_count = u16::try_from(ear_vertices.len()).unwrap();
+        let ear_axis_y = ear_vertices
+            .iter()
+            .map(|vertex| vertex.position.y)
+            .sum::<f32>()
+            / f32::from(ear_count);
+        assert!((ear_axis_y - 0.12).abs() < 1.0e-3);
         assert!(maximum.z > 0.3, "the face must point toward canonical +Z");
         assert!(vertices.iter().all(|vertex| vertex.normal.is_normalized()));
     }

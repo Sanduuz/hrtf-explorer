@@ -1,4 +1,4 @@
-import init, { BinauralApp } from "/pkg/binaural_explorer_web.js?v=20260927-stream1";
+import init, { BinauralApp } from "/pkg/binaural_explorer_web.js?v=20260927-headalign3";
 import { BrowserAudio } from "/audio.js?v=20260927-stream1";
 import { renderHrirPlot } from "/hrir-plot.js?v=20260927-stream1";
 
@@ -415,7 +415,7 @@ async function togglePlayback() {
 
 async function start() {
   try {
-    await init({ module_or_path: "/pkg/binaural_explorer_web_bg.wasm?v=20260927-stream1" });
+    await init({ module_or_path: "/pkg/binaural_explorer_web_bg.wasm?v=20260927-headalign3" });
     app = new BinauralApp();
     const response = await fetch("/assets/mit-kemar.bhrtf");
     if (!response.ok) {
