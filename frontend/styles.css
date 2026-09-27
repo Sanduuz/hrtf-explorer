@@ -670,6 +670,16 @@ footer {
     flex-direction: column;
   }
 
+  .source-presets {
+    flex: none;
+    width: 100%;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .source-presets button {
+    min-height: 1.5rem;
+  }
+
   .interaction-help {
     text-align: left;
   }
